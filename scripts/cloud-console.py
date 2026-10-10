@@ -32,6 +32,27 @@ for line in iter(input, 'EXIT'):
                 print(json.dumps(result, ensure_ascii=False), flush=True)
             except urllib.error.HTTPError as error:
                 print('HTTP', error.code, error.read().decode()[:2000], flush=True)
+        elif command['action'] == 'personal-access':
+            access = getpass.getpass('New personal password (hidden): ')
+            if not access: raise ValueError('Empty password')
+            share_path = ROOT / '.cache/share-key.txt'
+            share_path.parent.mkdir(parents=True, exist_ok=True)
+            share = share_path.read_text().strip() if share_path.exists() else secrets.token_urlsafe(32)
+            for name, value in [('ACCESS_TOKEN', access), ('SHARE_TOKEN', share)]:
+                request = urllib.request.Request('https://api.cloudflare.com/client/v4/accounts/' + account + '/workers/scripts/never-map/secrets',
+                    data=json.dumps({'name': name, 'text': value, 'type': 'secret_text'}).encode(), method='PUT',
+                    headers={'Authorization': 'Bearer ' + secret, 'Content-Type': 'application/json'})
+                with urllib.request.urlopen(request, timeout=30) as response:
+                    result = json.loads(response.read())
+                if not result.get('success'): raise ValueError('Secret update failed')
+                print(name + ': configured', flush=True)
+            for path, value in [(ROOT / '.cache/access-key.txt', access), (share_path, share)]:
+                path.write_text(value)
+                subprocess.run(['icacls', str(path), '/inheritance:r', '/grant:r', 'Administrator:F', 'SYSTEM:F'], capture_output=True, check=True)
+            link = 'https://never-map.never-map-0411yiang0411.workers.dev/#share=' + share
+            (ROOT / '.cache/shared-link.txt').write_text(link)
+            subprocess.run(['icacls', str(ROOT / '.cache/shared-link.txt'), '/inheritance:r', '/grant:r', 'Administrator:F', 'SYSTEM:F'], capture_output=True, check=True)
+            print('Personal access updated; shared link saved privately.', flush=True)
         elif command['action'] == 'secrets':
             key_path = ROOT / '.cache/access-key.txt'
             key_path.parent.mkdir(parents=True, exist_ok=True)

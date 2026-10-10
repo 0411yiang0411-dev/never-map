@@ -82,6 +82,25 @@ test('expired account verification blocks data operations', async () => {
   assert.equal((await call('scene')).status, 429);
   assert.equal(reads + writes, 0);
 });
+test('persistent sharing authorizes the same canvas without exposing its password', async () => {
+  env.SHARE_TOKEN = 'test-only-share-token';
+  const share = await (await call('share')).json();
+  assert.ok(share.url.endsWith('#share=test-only-share-token'));
+  assert.ok(!JSON.stringify(share).includes(token));
+  const headers = { Authorization: 'Bearer test-only-share-token', 'Content-Type': 'application/json' };
+  assert.equal((await call('scene', 'PUT', sceneBody(0), headers)).status, 200);
+  assert.equal((await call('scene')).status, 200);
+  env.ACCESS_TOKEN = 'changed-test-only-password';
+  assert.equal((await call('scene')).status, 401);
+  assert.equal((await call('scene', 'GET', undefined, headers)).status, 200);
+});
+test('sharing preserves quota stops and rejects unrecognized links', async () => {
+  env.SHARE_TOKEN = 'test-only-share-token';
+  assert.equal((await call('scene', 'GET', undefined, { Authorization: 'Bearer other-share-token' })).status, 401);
+  sql.exec('UPDATE quota SET bytes=9900000000');
+  assert.equal((await call('scene', 'GET', undefined, { Authorization: 'Bearer test-only-share-token' })).status, 429);
+  assert.equal((await call('share')).status, 429);
+});
 test('scheduled verification preserves conservative usage across month rollover', async () => {
   const original = globalThis.fetch;
   env.MONITOR_TOKEN_CF = 'test-only-monitor';

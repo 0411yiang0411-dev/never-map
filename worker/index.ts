@@ -1,6 +1,6 @@
 import { LIMITS, STOP_RATIO, quotaState } from './quota.mjs';
 
-interface Env { ASSETS: Fetcher; DB?: D1Database; IMAGES?: R2Bucket; ACCESS_TOKEN?: string; MONITOR_TOKEN_CF?: string; CLOUD_ENABLED: string }
+interface Env { ASSETS: Fetcher; DB?: D1Database; IMAGES?: R2Bucket; ACCESS_TOKEN?: string; SHARE_TOKEN?: string; MONITOR_TOKEN_CF?: string; CLOUD_ENABLED: string }
 const reply = (body: unknown, status = 200) => Response.json(body, { status, headers: { 'Cache-Control': 'no-store' } });
 const month = () => new Date().toISOString().slice(0, 7);
 const MAX_IMAGE = 2_000_000;
@@ -10,10 +10,14 @@ async function authenticated(request: Request, env: Env) {
   if (!env.ACCESS_TOKEN) return false;
   const presented = request.headers.get('Authorization')?.replace(/^Bearer /, '') || '';
   const hash = async (value: string) => new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(value)));
-  const [a, b] = await Promise.all([hash(presented), hash(env.ACCESS_TOKEN)]);
-  let difference = 0;
-  for (let i = 0; i < a.length; i++) difference |= a[i] ^ b[i];
-  return difference === 0;
+  const a = await hash(presented);
+  for (const expected of [env.ACCESS_TOKEN, env.SHARE_TOKEN].filter(Boolean) as string[]) {
+    const b = await hash(expected);
+    let difference = 0;
+    for (let i = 0; i < a.length; i++) difference |= a[i] ^ b[i];
+    if (difference === 0) return true;
+  }
+  return false;
 }
 
 async function usage(env: Env) {
@@ -103,6 +107,10 @@ export default {
       const state = quotaState(current);
       if (url.pathname === '/api/usage' && request.method === 'GET') return reply({ ...state, usage: current, limits: LIMITS, scope: '项目保守计数＋已核实账号基线；不包含后续外部调用' });
       if (state.paused) return reply({ error: state.reason, quota: state }, 429);
+      if (url.pathname === '/api/share' && request.method === 'GET') {
+        if (!env.SHARE_TOKEN) return reply({ error: '共享链接尚未配置' }, 503);
+        return reply({ url: `https://never-map.never-map-0411yiang0411.workers.dev/#share=${encodeURIComponent(env.SHARE_TOKEN)}` });
+      }
       if (url.pathname === '/api/scene') {
         if (request.method === 'GET') {
           const row = await env.DB.prepare('SELECT revision,body,updated_at FROM scene WHERE id=1').first<{ revision: number; body: string; updated_at: string }>();

@@ -71,7 +71,20 @@ not constitute screenshot verification.
 
 Personal key: `.cache/access-key.txt`, restricted to local Administrator/SYSTEM.
 Open the editor cloud panel, enter the key, connect, then load the cloud
-canvas or explicitly save your local canvas. Keys stay out of Git and URLs.
+canvas or explicitly save your local canvas. Personal passwords and Cloudflare
+API credentials stay out of Git and URLs.
+
+Personal password is configured as a Worker secret. The cloud panel displays
+real connection milestones with a progress bar and offers a persistent shared
+link after successful authentication. The shared credential is separate from
+the password, stored in the URL fragment and sent in authenticated API headers.
+It never embeds the password or Cloudflare API token. Anyone possessing the
+link can edit the same canvas without entering a password. Opening it loads
+the cloud canvas automatically; idle visible clients check for updates every
+20 seconds. Unsaved cloud edits trigger a close-page warning. Conflicting
+revisions are rejected rather than silently overwriting another device.
+The most recent pre-load shared browser copy is retained as `shared-recovery`
+in IndexedDB. Both access methods retain the same quota guards.
 
 An hourly Codex heartbeat checks public quota status and notifies only on
 meaningful warning/pause/recovery changes. This reminder requires Codex to

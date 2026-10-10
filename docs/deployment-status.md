@@ -13,7 +13,7 @@ Date: 2026-10-10 (Asia/Shanghai)
   subscription has $0 base and usage charges beyond free allowances.
 - Live website: https://never-map.never-map-0411yiang0411.workers.dev
 - D1: never-map-db; R2: never-map-images, Standard storage, private.
-- Production version: 220ed463-0f0b-4dfa-801c-119903b0307f.
+- Production version: b71d0cb3-42f2-48df-8335-9bdd5b089395.
 - Usage policy: 90% warning, 99% cloud stop; verification hourly, expires
   after two hours; unknown/month rollover fails closed. Counters never lower.
 - Codex hourly heartbeat `never-map` created ACTIVE for warning/pause/recovery
@@ -22,7 +22,12 @@ Date: 2026-10-10 (Asia/Shanghai)
 - HTTPS verification at 2026-10-10 22:57 Asia/Shanghai: public assets, config,
   quota, image upload/exact-byte reload, D1 save/reload, blank initial canvas
   and public quota endpoint passed. `.cache/live-verification.json` has proof.
-- Fourteen local backend/quota tests passed.
+- Sixteen local backend/quota tests passed, including shared authentication,
+  password changes preserving the shared link, and quota stops for sharing.
+- Personal password changed at the user's request, exclusively in Worker
+  secrets and private local cache, never source code. Separate persistent
+  shared-link credential configured. Connection progress and copy-link UI
+  deployed; shared entry automatically loads the same cloud scene.
 - Final production checks also passed: unauthorized scene requests rejected,
   repeated fresh quota verification makes no extra R2 requests, blank canvas
   intact. Proof: `.cache/final-check.json`.
