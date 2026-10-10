@@ -1,0 +1,27 @@
+name: Build and verify
+on:
+  push:
+    branches: [main]
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    env:
+      WRANGLER_SEND_METRICS: "false"
+      XDG_CACHE_HOME: ${{ github.workspace }}/.cache
+      XDG_CONFIG_HOME: ${{ github.workspace }}/.cache/config
+      TMPDIR: ${{ github.workspace }}/.tmp
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+      - uses: pnpm/action-setup@v4
+        with:
+          version: "11.25.0"
+      - run: mkdir -p .tmp .cache && pnpm config set store-dir "$PWD/.cache/pnpm-store" && pnpm install --frozen-lockfile
+      - run: pnpm run build
+      - run: pnpm exec wrangler deploy --dry-run --outdir .tmp/worker-build
+      - run: pnpm test
