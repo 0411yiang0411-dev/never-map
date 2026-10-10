@@ -11,12 +11,14 @@ function prepared(query) {
   return {
     bind(...args) { params = args; return this; },
     async first() { return sql.prepare(query).get(...params) || null; },
+    async all() { return { results: sql.prepare(query).all(...params) }; },
     async run() { return { meta: { changes: Number(sql.prepare(query).run(...params).changes) } }; }
   };
 }
 beforeEach(() => {
   sql = new DatabaseSync(':memory:'); sql.exec(readFileSync('migrations/0001.sql', 'utf8'));
   sql.exec(readFileSync('migrations/0002.sql', 'utf8'));
+  sql.exec(readFileSync('migrations/0003.sql', 'utf8'));
   sql.prepare('INSERT INTO quota VALUES(1,?,0,0,0,1,?)').run(new Date().toISOString().slice(0, 7), Math.floor(Date.now()/1000) + 7200);
   writes = 0; reads = 0;
   env = { CLOUD_ENABLED: 'true', ACCESS_TOKEN: token, DB: { prepare: prepared },
@@ -138,4 +140,49 @@ test('failed scheduled verification stops cloud access rather than guessing usag
     assert.equal(sql.prepare('SELECT verified FROM quota').get().verified, 0);
     assert.equal((await call('scene')).status, 429);
   } finally { globalThis.fetch = original; }
+});
+test('canvas migration preserves the authoritative legacy scene and old shared link',async()=>{
+  const original={elements:[{id:'legacy',type:'text',text:'original'}],files:{},appState:{}};
+  await call('scene','PUT',JSON.stringify({revision:0,scene:original}),{'Content-Type':'application/json'});
+  sql.exec(readFileSync('migrations/0003.sql','utf8'));
+  assert.deepEqual((await(await call('canvases/main/scene')).json()).scene,original);
+  assert.equal((await(await call('canvases')).json()).canvases[0].id,'main');
+});
+test('create and rename canvases keep contents independent and ids stable',async()=>{
+  const created=await call('canvases','POST',JSON.stringify({name:'first'}),{'Content-Type':'application/json'});
+  assert.equal(created.status,201);const a=await created.json();
+  const b=await(await call('canvases','POST',JSON.stringify({name:'second'}),{'Content-Type':'application/json'})).json();
+  const scene={elements:[{id:'one',version:1}],files:{},appState:{}};
+  assert.equal((await call(`canvases/${a.id}/scene`,'PUT',JSON.stringify({revision:0,scene}),{'Content-Type':'application/json'})).status,200);
+  assert.equal((await(await call(`canvases/${b.id}/scene`)).json()).scene,null);
+  const renamed=await(await call(`canvases/${a.id}`,'PATCH',JSON.stringify({name:'renamed'}),{'Content-Type':'application/json'})).json();
+  assert.equal(renamed.id,a.id);assert.equal(renamed.name,'renamed');
+  assert.deepEqual((await(await call(`canvases/${a.id}/scene`)).json()).scene,scene);
+});
+test('other devices receive changes and deletions; stale devices cannot overwrite',async()=>{
+  const created=await(await call('canvases','POST',JSON.stringify({name:'sync'}),{'Content-Type':'application/json'})).json();
+  const path=`canvases/${created.id}/scene`;
+  const put=(revision,elements)=>call(path,'PUT',JSON.stringify({revision,scene:{elements,files:{},appState:{}}}),{'Content-Type':'application/json'});
+  assert.equal((await put(0,[{id:'a',version:1}])).status,200);
+  const second=await(await call(path)).json();assert.equal(second.revision,1);
+  assert.equal((await call(path+'?after=1')).status,204);
+  assert.equal((await put(1,[])).status,200);
+  const deleted=await(await call(path+'?after=1')).json();assert.deepEqual(deleted.scene.elements,[]);
+  assert.equal((await put(second.revision,[{id:'stale'}])).status,409);
+  assert.deepEqual((await(await call(path)).json()).scene.elements,[]);
+});
+test('canvas share links target the correct canvas and respect quota stops',async()=>{
+  env.SHARE_TOKEN='test-only-share-canvas';
+  const a=await(await call('canvases','POST',JSON.stringify({name:'shared'}),{'Content-Type':'application/json'})).json();
+  const link=await(await call(`share?canvas=${a.id}`)).json();assert.ok(link.url.endsWith('&canvas='+a.id));
+  assert.equal((await call(`canvases/${a.id}/scene`,'GET',undefined,{Authorization:'Bearer test-only-share-canvas'})).status,200);
+  sql.exec('UPDATE quota SET class_a=990000');
+  assert.equal((await call('canvases')).status,429);
+  assert.equal((await call(`canvases/${a.id}/scene`)).status,429);
+  assert.equal((await call(`canvases/${a.id}`,'PATCH',JSON.stringify({name:'no'}))).status,429);
+});
+test('invalid names and nonexistent canvases fail without creating scenes',async()=>{
+  assert.equal((await call('canvases','POST',JSON.stringify({name:'   '}))).status,400);
+  assert.equal((await call('canvases/missing/scene')).status,404);
+  assert.equal((await call('canvases/missing/scene','PUT',sceneBody(0),{'Content-Type':'application/json'})).status,404);
 });

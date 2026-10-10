@@ -107,12 +107,48 @@ export default {
       const state = quotaState(current);
       if (url.pathname === '/api/usage' && request.method === 'GET') return reply({ ...state, usage: current, limits: LIMITS, scope: '项目保守计数＋已核实账号基线；不包含后续外部调用' });
       if (state.paused) return reply({ error: state.reason, quota: state }, 429);
+      if (url.pathname === '/api/canvases') {
+        if (request.method === 'GET') {
+          const result = await env.DB.prepare(`SELECT c.id,c.name,CASE WHEN c.id='main' THEN COALESCE(s.revision,0) ELSE c.revision END revision,
+            CASE WHEN c.id='main' THEN COALESCE(s.updated_at,c.updated_at) ELSE c.updated_at END updatedAt
+            FROM canvases c LEFT JOIN scene s ON s.id=1 ORDER BY c.id='main' DESC,c.updated_at DESC`).all();
+          return reply({ canvases: result.results });
+        }
+        if (request.method === 'POST') {
+          const input = await request.json() as any;
+          const name = typeof input.name === 'string' ? input.name.trim() : '';
+          if (!name || name.length > 80 || /[\u0000-\u001f]/.test(name)) return reply({ error:'画布名称需为 1–80 个字符' },400);
+          const row = await env.DB.prepare(`INSERT INTO canvases(id,name,updated_at) SELECT ?,?,?
+            WHERE (SELECT COUNT(*) FROM canvases)<200 RETURNING id,name,revision,updated_at AS updatedAt`)
+            .bind(crypto.randomUUID(),name,new Date().toISOString()).first();
+          return row ? reply(row,201) : reply({ error:'已达到 200 个画布的保护上限' },429);
+        }
+      }
+      const canvasRoute = url.pathname.match(/^\/api\/canvases\/([a-zA-Z0-9_-]{1,64})(\/scene)?$/);
+      if (canvasRoute && !canvasRoute[2] && request.method==='PATCH') {
+        const input = await request.json() as any;
+        const name = typeof input.name === 'string' ? input.name.trim() : '';
+        if (!name || name.length>80 || /[\u0000-\u001f]/.test(name)) return reply({ error:'画布名称需为 1–80 个字符' },400);
+        const row = await env.DB.prepare('UPDATE canvases SET name=? WHERE id=? RETURNING id,name,revision,updated_at AS updatedAt').bind(name,canvasRoute[1]).first();
+        return row ? reply(row) : reply({error:'画布不存在'},404);
+      }
       if (url.pathname === '/api/share' && request.method === 'GET') {
         if (!env.SHARE_TOKEN) return reply({ error: '共享链接尚未配置' }, 503);
-        return reply({ url: `https://never-map.never-map-0411yiang0411.workers.dev/#share=${encodeURIComponent(env.SHARE_TOKEN)}` });
+        const canvasId=url.searchParams.get('canvas') || 'main';
+        if (!/^[a-zA-Z0-9_-]{1,64}$/.test(canvasId) || !(await env.DB.prepare('SELECT id FROM canvases WHERE id=?').bind(canvasId).first())) return reply({error:'画布不存在'},404);
+        return reply({ url: `https://never-map.never-map-0411yiang0411.workers.dev/#share=${encodeURIComponent(env.SHARE_TOKEN)}${canvasId==='main'?'':`&canvas=${encodeURIComponent(canvasId)}`}` });
       }
-      if (url.pathname === '/api/scene') {
+      if (url.pathname === '/api/scene' || canvasRoute?.[2]) {
+        const canvasId=canvasRoute?.[1] || 'main';
         if (request.method === 'GET') {
+          if (canvasId!=='main') {
+            const row=await env.DB.prepare('SELECT revision,body,updated_at FROM canvases WHERE id=?').bind(canvasId).first<{revision:number;body:string|null;updated_at:string}>();
+            if (!row) return reply({error:'画布不存在'},404);
+            if (url.searchParams.get('after')===String(row.revision)) return new Response(null,{status:204,headers:{'Cache-Control':'no-store'}});
+            return reply({revision:row.revision,scene:row.body?JSON.parse(row.body):null,updatedAt:row.updated_at});
+          }
+          const marker=await env.DB.prepare('SELECT revision FROM scene WHERE id=1').first<{revision:number}>();
+          if (url.searchParams.get('after')===String(marker?.revision || 0)) return new Response(null,{status:204,headers:{'Cache-Control':'no-store'}});
           const row = await env.DB.prepare('SELECT revision,body,updated_at FROM scene WHERE id=1').first<{ revision: number; body: string; updated_at: string }>();
           return reply(row ? { revision: row.revision, scene: JSON.parse(row.body), updatedAt: row.updated_at } : { revision: 0, scene: null });
         }
@@ -123,6 +159,13 @@ export default {
           const input = JSON.parse(raw);
           if (!Number.isSafeInteger(input.revision) || input.revision < 0 || !Array.isArray(input.scene?.elements) || typeof input.scene?.files !== 'object') return reply({ error: '画布格式无效' }, 400);
           const body = JSON.stringify(input.scene);
+          if (canvasId!=='main') {
+            const updated=await env.DB.prepare('UPDATE canvases SET revision=revision+1,body=?,updated_at=? WHERE id=? AND revision=? RETURNING revision')
+              .bind(body,new Date().toISOString(),canvasId,input.revision).first();
+            if (updated) return reply(updated);
+            const exists=await env.DB.prepare('SELECT id FROM canvases WHERE id=?').bind(canvasId).first();
+            return exists ? reply({error:'另一设备已更新此画布，本机未同步修改已保留，请先导出或读取云端'},409) : reply({error:'画布不存在'},404);
+          }
           const updated = await env.DB.prepare(`INSERT INTO scene(id,revision,body,updated_at)
             SELECT 1,1,?,? WHERE ?=0
             ON CONFLICT(id) DO UPDATE SET revision=scene.revision+1,body=excluded.body,updated_at=excluded.updated_at

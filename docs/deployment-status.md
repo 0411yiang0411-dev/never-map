@@ -13,7 +13,7 @@ Date: 2026-10-10 (Asia/Shanghai)
   subscription has $0 base and usage charges beyond free allowances.
 - Live website: https://never-map.never-map-0411yiang0411.workers.dev
 - D1: never-map-db; R2: never-map-images, Standard storage, private.
-- Production version: 36f24dad-356a-42c5-bbb0-0f1f6704372a.
+- Production version: c42382dc-6904-4af2-8b79-853c9bedf245.
 - Usage policy: 90% warning, 99% cloud stop; verification hourly, expires
   after two hours; unknown/month rollover fails closed. Counters never lower.
 - Codex hourly heartbeat `never-map` created ACTIVE for warning/pause/recovery
@@ -34,6 +34,16 @@ Date: 2026-10-10 (Asia/Shanghai)
   JavaScript/CSS and exact-byte private SVG storage verified over HTTPS.
   Existing user canvas was not changed by the formatting deployment checks.
   Visual browser interaction remains unverified due the earlier control issue.
+- 2026-10-11: multi-canvas workspace deployed. Create/rename and independent
+  scene storage implemented; original `main` scene stays in the existing table.
+  Content upload timer and idle download polling are both 5 seconds. Login
+  auto-loads the cloud canvas; caches, pending flags and recovery are per-canvas.
+- Twenty-six local tests pass. Live independent-client API checks passed:
+  create/rename, isolation, changes/deletions, revision conflicts, per-canvas
+  sharing, unchanged-revision 204 responses and legacy main compatibility.
+  Proof: `.cache/multi-canvas-verification.json`. Existing user scene was never
+  written by these tests. Disposable test canvas cleanup is bounded by exact
+  created IDs, names and expected revisions; no existing canvas is deleted.
 - Final production checks also passed: unauthorized scene requests rejected,
   repeated fresh quota verification makes no extra R2 requests, blank canvas
   intact. Proof: `.cache/final-check.json`.

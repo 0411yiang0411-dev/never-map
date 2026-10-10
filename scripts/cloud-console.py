@@ -32,6 +32,17 @@ for line in iter(input, 'EXIT'):
                 print(json.dumps(result, ensure_ascii=False), flush=True)
             except urllib.error.HTTPError as error:
                 print('HTTP', error.code, error.read().decode()[:2000], flush=True)
+        elif command['action'] == 'backup-main':
+            query = {'sql':'SELECT * FROM scene WHERE id=1'}
+            request = urllib.request.Request('https://api.cloudflare.com/client/v4/accounts/' + account + '/d1/database/e297fae0-1ce6-469e-a9dc-3a245c5d41cf/query',
+                data=json.dumps(query).encode(),method='POST',headers={'Authorization':'Bearer '+secret,'Content-Type':'application/json'})
+            with urllib.request.urlopen(request,timeout=30) as response: result=json.loads(response.read())
+            if not result.get('success'): raise ValueError('Backup failed')
+            import datetime
+            path=ROOT/'.cache/backups'/('before-multi-canvas-'+datetime.datetime.now(datetime.timezone.utc).strftime('%Y%m%d-%H%M%S')+'.json')
+            path.parent.mkdir(parents=True,exist_ok=True);path.write_text(json.dumps(result),encoding='utf8')
+            subprocess.run(['icacls',str(path),'/inheritance:r','/grant:r','Administrator:F','SYSTEM:F'],capture_output=True,check=True)
+            print('Existing main scene backed up privately.',flush=True)
         elif command['action'] == 'personal-access':
             access = getpass.getpass('New personal password (hidden): ')
             if not access: raise ValueError('Empty password')

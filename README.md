@@ -34,7 +34,7 @@ to recreate the drawing engine. Dependencies are pinned by `pnpm-lock.yaml`.
 Live deployment: https://never-map.never-map-0411yiang0411.workers.dev
 
 For a NEW deployment, first set `CLOUD_ENABLED=false`, create private D1/R2
-bindings, apply both SQL migrations, and configure `ACCESS_TOKEN` and
+bindings, apply the SQL migrations in order, and configure `ACCESS_TOKEN` and
 `MONITOR_TOKEN_CF` as Worker secrets. Never put secrets in Git or client code.
 Invoke `/api/reconcile` with the personal access token, confirm it is unpaused,
 then enable cloud saving. Remain on Workers Free and R2 Standard.
@@ -103,6 +103,34 @@ uses foreignObject or external resources. Cloud manifests upload only image
 files referenced by current visible elements, avoiding old note-version
 uploads. Quota controls remain unchanged. A note is limited to 3000 characters
 and its generated SVG must fit the existing private image upload limit.
+
+## Multiple canvases and synchronization
+
+The header canvas list supports creating and renaming independent canvases.
+Names and IDs are separate from scene contents. The original canvas keeps ID
+`main` and its authoritative legacy `scene` row; migration does not copy or
+replace that user's scene. Old shared links continue to open `main`.
+
+Changes, including deleting all elements, queue an automatic upload after
+5 seconds. Signing in automatically downloads the selected cloud canvas.
+Visible idle clients check for updates every 5 seconds; unchanged revisions
+return HTTP 204 and previously loaded image bytes are reused. Network transfer
+time may add latency. This is periodic scene synchronization, with revision
+conflicts preserved for explicit resolution rather than multiplayer merging.
+
+Each canvas has its own browser cache and pending-upload state. Before
+switching, pending content is saved; failed uploads stop switching and retain
+local content. Refreshing with pending edits resumes saving when the cloud
+base revision is unchanged; if both versions changed, local work is preserved.
+The cloud panel offers download, explicit local overwrite and local recovery.
+An in-progress local edit will not be replaced by a late background download.
+
+Shared links include the canvas ID in their fragment to open the chosen
+canvas. Sharing grants access to this personal workspace, including its other
+canvases. Authenticated owner URLs also retain the selected ID across refresh.
+The existing account-level quota guards cover all canvases together. A 200
+canvas protection limit keeps this personal deployment within a modest data
+footprint. Creating a canvas does not create a paid service or a new bucket.
 
 An hourly Codex heartbeat checks public quota status and notifies only on
 meaningful warning/pause/recovery changes. This reminder requires Codex to
