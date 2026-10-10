@@ -31,12 +31,13 @@ to recreate the drawing engine. Dependencies are pinned by `pnpm-lock.yaml`.
 
 ## Cloud deployment
 
-Cloud saving is disabled by default until permissions, usage and the Free
-Workers plan are confirmed. Add the D1 and R2 bindings to `wrangler.jsonc`,
-apply `migrations/0001.sql`, provision the personal `ACCESS_TOKEN` with
-`wrangler secret put`, and initialize quota from verified account metrics.
-Only then set `CLOUD_ENABLED=true` and deploy. Never commit either API token
-or personal access token. Use Standard R2 storage only.
+Live deployment: https://never-map.never-map-0411yiang0411.workers.dev
+
+For a NEW deployment, first set `CLOUD_ENABLED=false`, create private D1/R2
+bindings, apply both SQL migrations, and configure `ACCESS_TOKEN` and
+`MONITOR_TOKEN_CF` as Worker secrets. Never put secrets in Git or client code.
+Invoke `/api/reconcile` with the personal access token, confirm it is unpaused,
+then enable cloud saving. Remain on Workers Free and R2 Standard.
 
 Do not expose the R2 bucket publicly or distribute S3 credentials. Assets
 are read and uploaded only through the authenticated Worker so quota guards
@@ -52,13 +53,26 @@ stored bytes at month rollover. Reservations for failed uploads remain
 counted until an administrator reconciles them.
 
 Warnings are shown in the editor. At 99% the app stops cloud reads/writes;
-local editing and export continue. New months stay paused until verified.
+local editing and export continue. The Worker reconciles account metrics
+hourly. A failed verification pauses operations; verification also expires
+after two hours. New months stay paused until verified. Counters are never
+lowered, including at month rollover, avoiding billing-date assumptions.
 These are application guards, not an account-wide Cloudflare billing cap.
 External dashboard/S3/other-bucket operations require reconciliation. The
 account owner has confirmed R2 is dedicated to never-map.
 
 ## Current status
 
-Local build is ready. Live deployment, cloud storage, threshold reminders
-and GitHub push must be separately verified; local code alone is not proof
-that any of those have been enabled on the provider.
+Published on 2026-10-10. Public assets, authenticated D1 save/reload, private
+R2 image upload/exact-byte reload and account quota reconciliation verified
+over HTTPS. Fourteen local backend/quota tests pass. Live canvas left blank.
+Browser visual QA unavailable due control bridge timeouts; API checks do
+not constitute screenshot verification.
+
+Personal key: `.cache/access-key.txt`, restricted to local Administrator/SYSTEM.
+Open the editor cloud panel, enter the key, connect, then load the cloud
+canvas or explicitly save your local canvas. Keys stay out of Git and URLs.
+
+An hourly Codex heartbeat checks public quota status and notifies only on
+meaningful warning/pause/recovery changes. This reminder requires Codex to
+be available; server checks and stops run independently.

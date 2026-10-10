@@ -16,7 +16,8 @@ function prepared(query) {
 }
 beforeEach(() => {
   sql = new DatabaseSync(':memory:'); sql.exec(readFileSync('migrations/0001.sql', 'utf8'));
-  sql.prepare('INSERT INTO quota VALUES(1,?,0,0,0,1)').run(new Date().toISOString().slice(0, 7));
+  sql.exec(readFileSync('migrations/0002.sql', 'utf8'));
+  sql.prepare('INSERT INTO quota VALUES(1,?,0,0,0,1,?)').run(new Date().toISOString().slice(0, 7), Math.floor(Date.now()/1000) + 7200);
   writes = 0; reads = 0;
   env = { CLOUD_ENABLED: 'true', ACCESS_TOKEN: token, DB: { prepare: prepared },
     ASSETS: { fetch: async () => new Response('editor') },
@@ -75,4 +76,38 @@ test('content hashes, upload limits, immutable reuse prevent excess R2 operation
   assert.equal((await call(`files/${'a'.repeat(64)}`, 'PUT', 'wrong', { 'Content-Type': 'image/png' })).status, 400);
   assert.equal((await call(`files/${'a'.repeat(64)}`, 'PUT', new Uint8Array(2_000_001), { 'Content-Type': 'image/png' })).status, 413);
   assert.equal(writes, 0);
+});
+test('expired account verification blocks data operations', async () => {
+  sql.exec('UPDATE quota SET verified_until=0');
+  assert.equal((await call('scene')).status, 429);
+  assert.equal(reads + writes, 0);
+});
+test('scheduled verification preserves conservative usage across month rollover', async () => {
+  const original = globalThis.fetch;
+  env.MONITOR_TOKEN_CF = 'test-only-monitor';
+  sql.exec("UPDATE quota SET month='2000-01',class_a=5000,class_b=6000,bytes=7000,verified=0");
+  globalThis.fetch = async url => {
+    if (url.endsWith('/r2/buckets')) return Response.json({ success: true, result: { buckets: [{ name: 'never-map-images' }] } });
+    if (url.endsWith('/subscriptions')) return Response.json({ success: true, result: [] });
+    if (url.endsWith('/r2/metrics')) return Response.json({ success: true, result: { standard: { uploaded: { payloadSize: 100, metadataSize: 0 } } } });
+    return Response.json({ data: { viewer: { accounts: [{ r2OperationsAdaptiveGroups: [{ sum: { requests: 20 } }] }] } }, errors: null });
+  };
+  let pending;
+  try {
+    await worker.scheduled({}, env, { waitUntil: p => { pending = p; } }); await pending;
+    const row = sql.prepare('SELECT * FROM quota').get();
+    assert.equal(row.verified, 1); assert.equal(row.month, new Date().toISOString().slice(0, 7));
+    assert.equal(row.class_a, 5010); assert.equal(row.class_b, 6010); assert.equal(row.bytes, 7000);
+  } finally { globalThis.fetch = original; }
+});
+test('failed scheduled verification stops cloud access rather than guessing usage', async () => {
+  const original = globalThis.fetch; env.MONITOR_TOKEN_CF = 'test-only-monitor';
+  sql.exec('UPDATE quota SET verified_until=0');
+  globalThis.fetch = async () => Response.json({ success: false }, { status: 403 });
+  let pending;
+  try {
+    await worker.scheduled({}, env, { waitUntil: p => { pending = p; } }); await pending;
+    assert.equal(sql.prepare('SELECT verified FROM quota').get().verified, 0);
+    assert.equal((await call('scene')).status, 429);
+  } finally { globalThis.fetch = original; }
 });

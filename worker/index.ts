@@ -1,6 +1,6 @@
 import { LIMITS, STOP_RATIO, quotaState } from './quota.mjs';
 
-interface Env { ASSETS: Fetcher; DB?: D1Database; IMAGES?: R2Bucket; ACCESS_TOKEN?: string; CLOUD_ENABLED: string }
+interface Env { ASSETS: Fetcher; DB?: D1Database; IMAGES?: R2Bucket; ACCESS_TOKEN?: string; MONITOR_TOKEN_CF?: string; CLOUD_ENABLED: string }
 const reply = (body: unknown, status = 200) => Response.json(body, { status, headers: { 'Cache-Control': 'no-store' } });
 const month = () => new Date().toISOString().slice(0, 7);
 const MAX_IMAGE = 2_000_000;
@@ -24,19 +24,79 @@ async function usage(env: Env) {
 // uploads cannot each spend the same last available operation or storage bytes.
 async function reserve(env: Env, a: number, b: number, bytes: number) {
   const result = await env.DB!.prepare(`UPDATE quota SET class_a=class_a+?, class_b=class_b+?, bytes=bytes+?
-    WHERE id=1 AND verified=1 AND month=?
+    WHERE id=1 AND verified=1 AND verified_until > unixepoch() AND month=?
     AND class_a+? < ? AND class_b+? < ? AND bytes+? < ? RETURNING *`)
     .bind(a, b, bytes, month(), a, Math.floor(LIMITS.class_a * STOP_RATIO), b,
       Math.floor(LIMITS.class_b * STOP_RATIO), bytes, Math.floor(LIMITS.bytes * STOP_RATIO)).first();
   return result;
 }
 
+async function reconcile(env: Env) {
+  if (!env.DB) return;
+  const base = 'https://api.cloudflare.com/client/v4';
+  const account = '7aeeb4163af696238b62b47a92d59f55';
+  try {
+    if (!env.MONITOR_TOKEN_CF) throw new Error('monitor unavailable');
+    const prior = await usage(env) as any;
+    // Do not turn the manual reconciliation endpoint into an unmetered
+    // ListBuckets loop. Fresh verification is reused for an hour.
+    if (prior?.verified && prior.month === month() && prior.verified_until > Date.now() / 1000 + 3600) return;
+    if (prior) {
+      const reserved = await env.DB.prepare(`UPDATE quota SET class_a=class_a+10,class_b=class_b+10
+        WHERE id=1 AND class_a+10 < ? AND class_b+10 < ? AND bytes < ? RETURNING id`)
+        .bind(Math.floor(LIMITS.class_a * STOP_RATIO), Math.floor(LIMITS.class_b * STOP_RATIO), Math.floor(LIMITS.bytes * STOP_RATIO)).first();
+      if (!reserved) return;
+    }
+    const api = async (path: string, body?: unknown) => {
+      const res = await fetch(base + path, { method: body ? 'POST' : 'GET', headers: { Authorization: `Bearer ${env.MONITOR_TOKEN_CF}`, 'Content-Type': 'application/json' }, body: body ? JSON.stringify(body) : undefined });
+      const data = await res.json() as any;
+      if (!res.ok || data.success === false || data.errors?.length) throw new Error('account verification failed');
+      return data;
+    };
+    const buckets = await api(`/accounts/${account}/r2/buckets`);
+    if (buckets.result.buckets.some((b: any) => b.name !== 'never-map-images')) throw new Error('other bucket detected');
+    const subscriptions = await api(`/accounts/${account}/subscriptions`);
+    if (subscriptions.result.some((s: any) => /workers/i.test(s.product?.name || s.rate_plan?.id || '') && Number(s.price) > 0)) throw new Error('paid workers plan');
+    const metrics = await api(`/accounts/${account}/r2/metrics`);
+    const start = new Date(Date.now() - 30 * 86400_000).toISOString();
+    const end = new Date().toISOString();
+    const operations = await api('/graphql', { query: `query { viewer { accounts(filter: {accountTag: "${account}"}) { r2OperationsAdaptiveGroups(limit: 10000, filter: {datetime_geq: "${start}", datetime_leq: "${end}"}) { sum { requests } dimensions { actionType } } } } }` });
+    const groups = operations.data?.viewer?.accounts?.[0]?.r2OperationsAdaptiveGroups;
+    if (!Array.isArray(groups) || groups.length >= 10000) throw new Error('incomplete metrics');
+    // Count ALL reported operations in BOTH dimensions, conservatively. Never
+    // reset operation totals at month rollover; do not rely on a billing-date guess.
+    const operationsFloor = groups.reduce((sum: number, item: any) => sum + Number(item.sum.requests), 0) + 1000;
+    let bytesFloor = 0;
+    for (const category of Object.values(metrics.result) as any[]) {
+      for (const value of Object.values(category) as any[]) {
+        const size = Number(value.payloadSize || 0) + Number(value.metadataSize || 0);
+        if (!Number.isFinite(size) || size < 0) throw new Error('invalid metrics');
+        bytesFloor += size;
+      }
+    }
+    if (!Number.isFinite(operationsFloor)) throw new Error('invalid operation count');
+    const until = Math.floor(Date.now() / 1000) + 7200;
+    await env.DB.prepare(`INSERT INTO quota(id,month,class_a,class_b,bytes,verified,verified_until) VALUES(1,?,?,?,?,1,?)
+      ON CONFLICT(id) DO UPDATE SET month=excluded.month,class_a=MAX(quota.class_a,excluded.class_a),
+      class_b=MAX(quota.class_b,excluded.class_b),bytes=MAX(quota.bytes,excluded.bytes),verified=1,verified_until=excluded.verified_until`)
+      .bind(month(), operationsFloor, operationsFloor, bytesFloor, until).run();
+  } catch {
+    await env.DB.prepare('UPDATE quota SET verified=0 WHERE id=1').run();
+  }
+}
+
 export default {
+  async scheduled(_event: ScheduledController, env: Env, ctx: ExecutionContext) { ctx.waitUntil(reconcile(env)); },
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
     if (!url.pathname.startsWith('/api/')) return env.ASSETS.fetch(request);
     if (url.pathname === '/api/config') return reply({ cloudEnabled: env.CLOUD_ENABLED === 'true' && !!env.DB && !!env.IMAGES && !!env.ACCESS_TOKEN });
+    if (url.pathname === '/api/status') {
+      if (!env.DB || env.CLOUD_ENABLED !== 'true') return reply({ warning: false, paused: true, reason: '尚未启用' });
+      return reply(quotaState(await usage(env)));
+    }
     if (!(await authenticated(request, env))) return reply({ error: '请输入个人访问密钥' }, 401);
+    if (url.pathname === '/api/reconcile' && request.method === 'POST') { await reconcile(env); return reply(quotaState(await usage(env))); }
     if (env.CLOUD_ENABLED !== 'true' || !env.DB || !env.IMAGES) return reply({ error: '云端保存尚未启用；本地编辑和导出仍可使用' }, 503);
     try {
       const current = await usage(env);

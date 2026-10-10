@@ -4,7 +4,11 @@
   "main": "worker/index.ts",
   "compatibility_date": "2026-10-10",
   "workers_dev": true,
+  "triggers": { "crons": ["0 * * * *"] },
+  "account_id": "7aeeb4163af696238b62b47a92d59f55",
+  "d1_databases": [{ "binding": "DB", "database_name": "never-map-db", "database_id": "e297fae0-1ce6-469e-a9dc-3a245c5d41cf" }],
+  "r2_buckets": [{ "binding": "IMAGES", "bucket_name": "never-map-images" }],
   "assets": { "directory": "./dist", "binding": "ASSETS", "not_found_handling": "single-page-application", "run_worker_first": ["/api/*"] },
-  "vars": { "CLOUD_ENABLED": "false" },
+  "vars": { "CLOUD_ENABLED": "true" },
   "observability": { "enabled": false }
 }

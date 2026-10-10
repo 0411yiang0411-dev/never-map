@@ -8,14 +8,24 @@ Date: 2026-10-10 (Asia/Shanghai)
 - Worker: dry-run bundle passed; SQLite-backed behavior tests passed.
 - Cloudflare: supplied API token validates account/R2 access. R2 bucket list
   was empty and account R2 metrics showed zero stored objects and bytes.
-- Blocker: current token lacks D1 and Workers subdomain permissions (401/403).
-- Live website: NOT DEPLOYED. Cloud saving is disabled by default.
-- Usage policy: 90% page warning, 99% cloud stop; unknown/month rollover fail
-  closed. Off-page notification automation is not yet configured.
+- Replacement token verified; Workers, D1, R2, analytics and subscription
+  access succeeded. No Workers paid subscription was present. Existing R2
+  subscription has $0 base and usage charges beyond free allowances.
+- Live website: https://never-map.never-map-0411yiang0411.workers.dev
+- D1: never-map-db; R2: never-map-images, Standard storage, private.
+- Production version: a6c73318-0159-419d-a42f-9bc0a39c52e2.
+- Usage policy: 90% warning, 99% cloud stop; verification hourly, expires
+  after two hours; unknown/month rollover fails closed. Counters never lower.
+- Codex hourly heartbeat `never-map` created ACTIVE for warning/pause/recovery
+  changes. Reminder requires desktop app availability; server checks/stops
+  run independently.
+- HTTPS verification at 2026-10-10 22:57 Asia/Shanghai: public assets, config,
+  quota, image upload/exact-byte reload, D1 save/reload, blank initial canvas
+  and public quota endpoint passed. `.cache/live-verification.json` has proof.
+- Fourteen local backend/quota tests passed.
 - Browser control: tab inventory is available; page DOM and screenshot calls
   time out. No successful browser screenshot or token edit is claimed.
 
-Only after required permissions are granted: verify Workers Free, create
-private Standard R2 bucket and D1 database, apply migration, initialize quota
-from account-level monthly operation/storage evidence, configure access
-secret, deploy, verify live saving and reload. Keep API tokens out of Git.
+Personal access key: `.cache/access-key.txt`, restricted to Administrator and
+SYSTEM. API token is not stored in project files; monitor and access keys are
+Cloudflare Worker secrets. Keep secrets out of Git and R2 private.

@@ -1,7 +1,7 @@
 """Local deployment console. Credentials are read without echo, kept in memory.
 Never commit this process's environment or logs containing authorization headers.
 """
-import getpass, json, os, subprocess, urllib.request, urllib.error
+import getpass, json, os, secrets, subprocess, urllib.request, urllib.error
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -32,6 +32,21 @@ for line in iter(input, 'EXIT'):
                 print(json.dumps(result, ensure_ascii=False), flush=True)
             except urllib.error.HTTPError as error:
                 print('HTTP', error.code, error.read().decode()[:2000], flush=True)
+        elif command['action'] == 'secrets':
+            key_path = ROOT / '.cache/access-key.txt'
+            key_path.parent.mkdir(parents=True, exist_ok=True)
+            access = key_path.read_text().strip() if key_path.exists() else secrets.token_urlsafe(32)
+            if not key_path.exists():
+                key_path.write_text(access)
+                subprocess.run(['icacls', str(key_path), '/inheritance:r', '/grant:r', 'Administrator:F', 'SYSTEM:F'], capture_output=True, check=True)
+            for name, value in [('ACCESS_TOKEN', access), ('MONITOR_TOKEN_CF', secret)]:
+                request = urllib.request.Request('https://api.cloudflare.com/client/v4/accounts/' + account + '/workers/scripts/never-map/secrets',
+                    data=json.dumps({'name': name, 'text': value, 'type': 'secret_text'}).encode(), method='PUT',
+                    headers={'Authorization': 'Bearer ' + secret, 'Content-Type': 'application/json'})
+                with urllib.request.urlopen(request, timeout=30) as response:
+                    result = json.loads(response.read())
+                print(name + ': ' + ('configured' if result.get('success') else 'FAILED'), flush=True)
+            print('Personal access key saved privately; no keys printed.', flush=True)
         elif command['action'] == 'wrangler':
             args = command['args']
             cli = ROOT / 'node_modules/wrangler/bin/wrangler.js'

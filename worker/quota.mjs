@@ -8,6 +8,8 @@ export const STOP_RATIO = 0.99;
 export function quotaState(row, month = new Date().toISOString().slice(0, 7)) {
   if (!row || !row.verified || row.month !== month)
     return { paused: true, warning: false, reason: '用量尚未核实，云端操作已暂停', remaining: {} };
+  if (row.verified_until !== undefined && Number(row.verified_until) <= Date.now() / 1000)
+    return { paused: true, warning: false, reason: '账号用量核验已过期，云端操作已暂停', remaining: {} };
   const remaining = {};
   let warning = false, paused = false;
   for (const [key, limit] of Object.entries(LIMITS)) {
