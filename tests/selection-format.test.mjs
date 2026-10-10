@@ -1,0 +1,4 @@
+import {test} from 'node:test';import assert from 'node:assert/strict';import {formatSelection} from '../src/selection-format.mjs';
+test('only selected characters receive bold underline or highlight',()=>{for(const command of ['bold','underline','highlight']){const blocks=formatSelection('前面选中后面',2,4,command);assert.deepEqual(blocks[0].runs,[{text:'前面'},{text:'选中',[command]:true},{text:'后面'}]);}});
+test('lists and checkboxes preserve the selected line text',()=>{for(const command of ['bullet','number','todo']){const blocks=formatSelection('第一项\n第二项\n第三项',4,7,command);assert.equal(blocks[0].type,'paragraph');assert.equal(blocks[1].type,command);assert.equal(blocks[1].runs[0].text,'第二项');assert.equal(blocks[2].type,'paragraph');}});
+test('separator is inserted without replacing selected text',()=>{const blocks=formatSelection('原文',0,2,'rule');assert.equal(blocks[0].runs[0].text,'原文');assert.equal(blocks[1].type,'rule');});

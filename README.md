@@ -88,17 +88,19 @@ in IndexedDB. Both access methods retain the same quota guards.
 
 ## Formatted text
 
-Select an existing text element (including text inside a box), then click
-`格式化文本`, or use `新增格式文本` without a selection. The editor supports
-highlight, bold, underline, separators, bullet lists, numbered lists and
-interactive todo checkboxes. Apply changes to the canvas; select that note
-again to edit it or toggle its todo items in the contextual checklist.
+The seven format buttons live inside Excalidraw's left selected-shape panel.
+Select characters while editing text, then click highlight, bold, underline,
+separator, bullet list, numbered list or todo. Native textarea selection offsets
+are captured before blur; only selected characters/lines are transformed.
+Formatting and subsequent typing edit directly on the canvas and persist
+automatically. There is no modal or separate Apply step. Double-click a
+formatted note to edit it inline again, and click its editable checkboxes to
+toggle todo status. The header `编辑文字` is an optional editing entry.
 
 Formatted notes are editable structured blocks in element `customData`, with
-an SVG image for canvas display and PNG export. They use the formatted-text
-panel for subsequent editing rather than the native plain-text editor.
-Native text is converted only when the user applies changes. Existing box
-geometry is preserved and expanded vertically if needed. Rendering never
+an SVG image for canvas display and PNG export. Inline editing preserves
+the text's canvas position. Existing box geometry is preserved and expanded
+vertically if needed. Rendering never
 uses foreignObject or external resources. Cloud manifests upload only image
 files referenced by current visible elements, avoiding old note-version
 uploads. Quota controls remain unchanged. A note is limited to 3000 characters

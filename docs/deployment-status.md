@@ -13,7 +13,7 @@ Date: 2026-10-10 (Asia/Shanghai)
   subscription has $0 base and usage charges beyond free allowances.
 - Live website: https://never-map.never-map-0411yiang0411.workers.dev
 - D1: never-map-db; R2: never-map-images, Standard storage, private.
-- Production version: c42382dc-6904-4af2-8b79-853c9bedf245.
+- Production version: 87ae8918-601b-441d-969d-02533a3bcff4.
 - Usage policy: 90% warning, 99% cloud stop; verification hourly, expires
   after two hours; unknown/month rollover fails closed. Counters never lower.
 - Codex hourly heartbeat `never-map` created ACTIVE for warning/pause/recovery
@@ -44,6 +44,14 @@ Date: 2026-10-10 (Asia/Shanghai)
   Proof: `.cache/multi-canvas-verification.json`. Existing user scene was never
   written by these tests. Disposable test canvas cleanup is bounded by exact
   created IDs, names and expected revisions; no existing canvas is deleted.
+- 2026-10-11: requested direct formatting integration replaces the modal flow.
+  Buttons are portaled into the selected-shape `.panelColumn` in the left
+  sidebar. Native character selections are captured and converted in place;
+  subsequent inline edits save automatically. Bottom formatting launcher no
+  longer renders. Twenty-nine data/layout/selection tests pass; production
+  asset checks recorded in `.cache/sidebar-assets-verification.json`.
+  The browser-control connection timed out on this turn, so live clicking and
+  screenshot verification are not claimed.
 - Final production checks also passed: unauthorized scene requests rejected,
   repeated fresh quota verification makes no extra R2 requests, blank canvas
   intact. Proof: `.cache/final-check.json`.

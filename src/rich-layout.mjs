@@ -18,12 +18,12 @@ export function modelHTML(blocks) {
 }
 
 /** @param {Array<any>} blocks
- * @param {{width?:number,fontSize?:number,color?:string,measure?:(char:string,bold:boolean,size:number)=>number}} options */
-export function layoutNote(blocks, {width = 440, fontSize = 22, color = '#1e1e1e', measure} = {}) {
+ * @param {{width?:number,fontSize?:number,color?:string,padding?:number,measure?:(char:string,bold:boolean,size:number)=>number}} options */
+export function layoutNote(blocks, {width = 440, fontSize = 22, color = '#1e1e1e', padding:requestedPadding=12, measure} = {}) {
   width = Math.max(180, Math.min(1200, Number(width) || 440));
   fontSize = Math.max(12, Math.min(64, Number(fontSize) || 22));
   color = /^#[0-9a-f]{3,8}$/i.test(color) ? color : '#1e1e1e';
-  const lineHeight = fontSize * 1.55, padding = 12;
+  const lineHeight = fontSize * 1.55, padding = Math.max(0,Math.min(24,requestedPadding));
   let y = padding + fontSize;
   const shapes = [], texts = [];
   let number = 0;

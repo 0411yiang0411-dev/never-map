@@ -4,10 +4,11 @@ import { CaptureUpdateAction, convertToExcalidrawElements } from '@excalidraw/ex
 import type { ExcalidrawImperativeAPI } from '@excalidraw/excalidraw/types';
 import { escapeHTML, layoutNote, modelHTML } from './rich-layout.mjs';
 import './rich-notes.css';
+import {SideTextTools} from './side-text-tools';
 
 type Run = { text: string; bold?: boolean; underline?: boolean; highlight?: boolean };
 type Block = { type: 'paragraph'|'bullet'|'number'|'todo'|'rule'; runs?: Run[]; checked?: boolean; number?: number };
-function readHTML(html: string): Block[] {
+export function readHTML(html: string): Block[] {
   const root = new DOMParser().parseFromString(html, 'text/html').body;
   const blocks: Block[] = [];
   const runs = (node: Node, inherited: Omit<Run,'text'> = {}): Run[] => {
@@ -36,23 +37,25 @@ function readHTML(html: string): Block[] {
       for (const child of [...node.childNodes]) walk(child); return;
     }
     const checkbox = node instanceof HTMLElement ? node.querySelector('input[type=checkbox]') : null;
-    blocks.push({ type: checkbox ? 'todo' : 'paragraph', checked: checkbox ? (checkbox as HTMLInputElement).checked : undefined, runs: runs(node) });
+    const content=runs(node);
+    if(checkbox && content[0]?.text.trim()==='')content.shift();
+    blocks.push({ type: checkbox ? 'todo' : 'paragraph', checked: checkbox ? (checkbox as HTMLInputElement).checked : undefined, runs: content });
   };
   for (const node of [...root.childNodes]) walk(node);
   return blocks.length ? blocks : [{ type: 'paragraph', runs: [{ text: '' }] }];
 }
 
-const sourceModel = (source: any): Block[] => source?.customData?.richNote?.blocks ||
+export const sourceModel = (source: any): Block[] => source?.customData?.richNote?.blocks ||
   String(source?.originalText || source?.text || '').split('\n').map(text => ({ type: 'paragraph', runs: [{ text }] }));
 
-async function writeNote(api: ExcalidrawImperativeAPI, source: any, blocks: Block[], width: number, fontSize: number) {
+export async function writeNote(api: ExcalidrawImperativeAPI, source: any, blocks: Block[], width: number, fontSize: number,inline=false) {
   const elements = api.getSceneElementsIncludingDeleted();
   const current = source && elements.find(e => e.id === source.id && !e.isDeleted);
   if (source && !current) throw new Error('这段文本已被删除，请重新选择');
   const container: any = source?.containerId ? elements.find(e => e.id === source.containerId && !e.isDeleted) : null;
   const color = source?.customData?.richNote?.color || source?.strokeColor || (api.getAppState().theme === 'dark' ? '#f5f5f5' : '#1e1e1e');
   const context = document.createElement('canvas').getContext('2d')!;
-  const rendered = layoutNote(blocks, { width, fontSize, color, measure: (char: string, bold: boolean, size: number) => {
+  const rendered = layoutNote(blocks, { width, fontSize, color, padding:inline?0:12,measure: (char: string, bold: boolean, size: number) => {
     context.font = `${bold ? 700 : 400} ${size}px Arial,Microsoft YaHei,sans-serif`; return context.measureText(char).width;
   }});
   const raw = new TextEncoder().encode(rendered.svg);
@@ -67,9 +70,9 @@ async function writeNote(api: ExcalidrawImperativeAPI, source: any, blocks: Bloc
   if (source && (!liveSource || liveSource.version !== source.version)) throw new Error('这段文本已更新，请重新选择后编辑，避免覆盖其他修改');
   api.addFiles([{ id: fileId as any, dataURL: dataURL as any, mimeType: 'image/svg+xml', created: Date.now() }]);
   const app = api.getAppState();
-  const x = source ? container ? container.x + 16 : source.x : (window.innerWidth / 2 - app.offsetLeft) / app.zoom.value - app.scrollX - width / 2;
-  const y = source ? container ? container.y + 16 : source.y : (window.innerHeight / 2 - app.offsetTop) / app.zoom.value - app.scrollY - rendered.height / 2;
-  const richNote = { blocks, width: rendered.width, fontSize, color, formatVersion: 1 };
+  const x = source ? container && !inline ? container.x + 16 : source.x : (window.innerWidth / 2 - app.offsetLeft) / app.zoom.value - app.scrollX - width / 2;
+  const y = source ? container && !inline ? container.y + 16 : source.y : (window.innerHeight / 2 - app.offsetTop) / app.zoom.value - app.scrollY - rendered.height / 2;
+  const richNote = { blocks, width: rendered.width, fontSize, color, formatVersion: 1,inline };
   const [fresh] = convertToExcalidrawElements([{ type: 'image', x, y, width: rendered.width, height: rendered.height, fileId, status: 'saved', scale: [1,1], customData: { richNote } } as any]);
   const image: any = source?.type === 'image' ? { ...current, width: rendered.width, height: rendered.height, fileId, customData: { ...current?.customData, richNote }, version: current!.version + 1, versionNonce: Math.floor(Math.random()*2147483647), updated: Date.now() } : { ...fresh, angle: source?.angle || 0, groupIds: source?.groupIds || [] };
   const next = liveElements.map((e: any) => {
@@ -80,25 +83,11 @@ async function writeNote(api: ExcalidrawImperativeAPI, source: any, blocks: Bloc
   });
   if (source?.type !== 'image') next.push(image);
   api.updateScene({ elements: next, appState: { selectedElementIds: { [image.id]: true } }, captureUpdate: CaptureUpdateAction.IMMEDIATELY });
+  return image;
 }
 
 export function RichNotes({ api, selection, onStatus }: { api: ExcalidrawImperativeAPI|null; selection: {id: string; version: number}|null; onStatus: (text:string)=>void }) {
-  const [editing, setEditing] = useState<{ source: any }|null>(null);
-  const source: any = api && selection ? api.getSceneElements().find(e => e.id === selection.id) : null;
-  const todos = source?.customData?.richNote?.blocks?.map((block: Block, index: number) => ({block,index})).filter(({block}:any) => block.type === 'todo') || [];
-  return <>
-    <button disabled={!api} onClick={() => setEditing({ source })} title="选择现有文本后可格式化；未选择时新建文本">{source ? '格式化文本' : '新增格式文本'}</button>
-    {source && createPortal(<div className="note-context">
-      <button onClick={() => setEditing({ source })}>高亮 · 粗体 · 下划线 · 列表</button>
-      {todos.length > 0 && <div className="quick-todos">{todos.map(({block,index}:any) => <label key={index}><input type="checkbox" checked={!!block.checked} onChange={async e => {
-        if (!api) return;
-        const checked = e.currentTarget.checked;
-        try { const blocks = sourceModel(source).map((b,i) => i === index ? {...b,checked} : b); await writeNote(api,source,blocks,source.width,source.customData.richNote.fontSize); }
-        catch(error) { onStatus((error as Error).message); }
-      }}/><span>{block.runs?.map((r:Run)=>r.text).join('') || '待办事项'}</span></label>)}</div>}
-    </div>,document.body)}
-    {editing && api && <NoteEditor api={api} source={editing.source} onClose={() => setEditing(null)} onStatus={onStatus}/>}
-  </>;
+  return <SideTextTools api={api} selection={selection} onStatus={onStatus}/>;
 }
 
 function NoteEditor({ api, source, onClose, onStatus }: {api: ExcalidrawImperativeAPI; source:any; onClose:()=>void; onStatus:(s:string)=>void}) {
