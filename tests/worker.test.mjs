@@ -82,6 +82,15 @@ test('expired account verification blocks data operations', async () => {
   assert.equal((await call('scene')).status, 429);
   assert.equal(reads + writes, 0);
 });
+test('formatted note metadata survives save and reload for shared editing',async()=>{
+  env.SHARE_TOKEN='test-only-shared-notes';
+  const note={type:'image',id:'note',fileId:'note-svg',customData:{richNote:{formatVersion:1,width:440,fontSize:22,blocks:[{type:'todo',checked:true,runs:[{text:'待办',bold:true,underline:true,highlight:true}]},{type:'rule'},{type:'number',runs:[{text:'编号'}]}]}}};
+  const scene={elements:[note],appState:{},files:{}};
+  const body=JSON.stringify({revision:0,scene});
+  assert.equal((await call('scene','PUT',body,{'Content-Type':'application/json'})).status,200);
+  const data=await (await call('scene','GET',undefined,{Authorization:'Bearer test-only-shared-notes'})).json();
+  assert.deepEqual(data.scene,scene);
+});
 test('persistent sharing authorizes the same canvas without exposing its password', async () => {
   env.SHARE_TOKEN = 'test-only-share-token';
   const share = await (await call('share')).json();

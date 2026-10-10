@@ -5,6 +5,7 @@ import type { ExcalidrawImperativeAPI, BinaryFiles } from '@excalidraw/excalidra
 import '@excalidraw/excalidraw/index.css';
 import './style.css';
 import './cloud.css';
+import { RichNotes } from './rich-notes';
 
 (window as any).EXCALIDRAW_ASSET_PATH = '/';
 type Drawing = { elements: any[]; appState: any; files: BinaryFiles };
@@ -44,6 +45,8 @@ function App() {
   const [connecting, setConnecting] = useState(!!sharedToken);
   const [usage, setUsage] = useState<any>(null);
   const api = useRef<ExcalidrawImperativeAPI | null>(null);
+  const [apiReady,setApiReady] = useState<ExcalidrawImperativeAPI|null>(null);
+  const [noteSelection,setNoteSelection] = useState<{id:string;version:number}|null>(null);
   const latest = useRef<Drawing | null>(null);
   const lastSignature = useRef('');
   const revision = useRef<number | null>(null);
@@ -103,7 +106,9 @@ function App() {
     try {
       await refreshUsage();
       const files: Record<string, any> = {};
+      const referenced = new Set(drawing.elements.filter(e=>e.type==='image'&&!e.isDeleted).map(e=>e.fileId));
       for (const [id, file] of Object.entries(drawing.files)) {
+        if (!referenced.has(id)) continue;
         const cached = knownFiles.current.get(id);
         let key = cached?.dataURL === file.dataURL ? cached.key : undefined;
         if (!key) {
@@ -197,7 +202,7 @@ function App() {
   }
 
   return <main>
-    <header><strong>never-map</strong><span role="status">{message}</span><div><button onClick={backup}>导出备份</button><button onClick={png}>导出 PNG</button><button onClick={() => setPanel(!panel)}>云端与额度</button></div></header>
+    <header><strong>never-map</strong><span role="status">{message}</span><div><RichNotes api={apiReady} selection={noteSelection} onStatus={setMessage}/><button onClick={backup}>导出备份</button><button onClick={png}>导出 PNG</button><button onClick={() => setPanel(!panel)}>云端与额度</button></div></header>
     {panel && <aside>
       <h2>个人云端画布</h2>
       {!cloudAvailable ? <p>云端尚未启用。账号授权、免费计划和用量核实完成前，保持本地编辑模式。</p> : <>
@@ -212,7 +217,9 @@ function App() {
       <small>额度保护同时适用于密码访问和共享链接。</small>
       <button onClick={() => setPanel(false)}>关闭</button>
     </aside>}
-    <section className="canvas" data-loading={connecting}>{initial !== undefined && <Excalidraw key={generation} langCode="zh-CN" initialData={initial || undefined} excalidrawAPI={value => { api.current = value; }} onChange={(elements, appState, files) => {
+    <section className="canvas" data-loading={connecting}>{initial !== undefined && <Excalidraw key={generation} langCode="zh-CN" initialData={initial || undefined} excalidrawAPI={value => { api.current = value; setApiReady(value); }} onChange={(elements, appState, files) => {
+      const selected = elements.find(e => !e.isDeleted && (appState.selectedElementIds[e.id] || appState.editingTextElement?.id === e.id) && (e.type === 'text' || e.customData?.richNote)) || elements.find(e => e.type === 'text' && !e.isDeleted && e.containerId && appState.selectedElementIds[e.containerId]);
+      setNoteSelection(previous => selected ? previous?.id===selected.id && previous.version===selected.version ? previous : {id:selected.id,version:selected.version} : previous ? null : previous);
       const signature = signatureOf(elements, appState, files);
       if (signature === lastSignature.current) return; lastSignature.current = signature;
       const drawing = { elements: [...elements], appState: { viewBackgroundColor: appState.viewBackgroundColor, theme: appState.theme }, files };

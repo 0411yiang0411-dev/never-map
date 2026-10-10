@@ -13,7 +13,7 @@ Date: 2026-10-10 (Asia/Shanghai)
   subscription has $0 base and usage charges beyond free allowances.
 - Live website: https://never-map.never-map-0411yiang0411.workers.dev
 - D1: never-map-db; R2: never-map-images, Standard storage, private.
-- Production version: b71d0cb3-42f2-48df-8335-9bdd5b089395.
+- Production version: 36f24dad-356a-42c5-bbb0-0f1f6704372a.
 - Usage policy: 90% warning, 99% cloud stop; verification hourly, expires
   after two hours; unknown/month rollover fails closed. Counters never lower.
 - Codex hourly heartbeat `never-map` created ACTIVE for warning/pause/recovery
@@ -28,6 +28,12 @@ Date: 2026-10-10 (Asia/Shanghai)
   secrets and private local cache, never source code. Separate persistent
   shared-link credential configured. Connection progress and copy-link UI
   deployed; shared entry automatically loads the same cloud scene.
+- Formatted-text extension: highlight, bold, underline, rules, bullets,
+  numbered lists and interactive todo checkboxes. Twenty-one backend/layout
+  tests pass, including structured-note roundtrip via shared access. Published
+  JavaScript/CSS and exact-byte private SVG storage verified over HTTPS.
+  Existing user canvas was not changed by the formatting deployment checks.
+  Visual browser interaction remains unverified due the earlier control issue.
 - Final production checks also passed: unauthorized scene requests rejected,
   repeated fresh quota verification makes no extra R2 requests, blank canvas
   intact. Proof: `.cache/final-check.json`.

@@ -86,6 +86,24 @@ revisions are rejected rather than silently overwriting another device.
 The most recent pre-load shared browser copy is retained as `shared-recovery`
 in IndexedDB. Both access methods retain the same quota guards.
 
+## Formatted text
+
+Select an existing text element (including text inside a box), then click
+`格式化文本`, or use `新增格式文本` without a selection. The editor supports
+highlight, bold, underline, separators, bullet lists, numbered lists and
+interactive todo checkboxes. Apply changes to the canvas; select that note
+again to edit it or toggle its todo items in the contextual checklist.
+
+Formatted notes are editable structured blocks in element `customData`, with
+an SVG image for canvas display and PNG export. They use the formatted-text
+panel for subsequent editing rather than the native plain-text editor.
+Native text is converted only when the user applies changes. Existing box
+geometry is preserved and expanded vertically if needed. Rendering never
+uses foreignObject or external resources. Cloud manifests upload only image
+files referenced by current visible elements, avoiding old note-version
+uploads. Quota controls remain unchanged. A note is limited to 3000 characters
+and its generated SVG must fit the existing private image upload limit.
+
 An hourly Codex heartbeat checks public quota status and notifies only on
 meaningful warning/pause/recovery changes. This reminder requires Codex to
 be available; server checks and stops run independently.
