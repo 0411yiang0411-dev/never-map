@@ -93,6 +93,13 @@ test('formatted note metadata survives save and reload for shared editing',async
   const data=await (await call('scene','GET',undefined,{Authorization:'Bearer test-only-shared-notes'})).json();
   assert.deepEqual(data.scene,scene);
 });
+test('editable table cells and styles survive cloud save for another device',async()=>{
+  env.SHARE_TOKEN='test-only-table-share';
+  const scene={elements:[{id:'table',type:'image',fileId:'svg-table',customData:{richTable:{version:1,cells:[['名称','数量'],['纸张','20']],header:true,columnWidth:140,fontSize:16,styles:{'1:1':{bold:true}}}}}],files:{},appState:{}};
+  assert.equal((await call('scene','PUT',JSON.stringify({revision:0,scene}),{'Content-Type':'application/json'})).status,200);
+  const loaded=await(await call('scene','GET',undefined,{Authorization:'Bearer test-only-table-share'})).json();
+  assert.deepEqual(loaded.scene,scene);
+});
 test('persistent sharing authorizes the same canvas without exposing its password', async () => {
   env.SHARE_TOKEN = 'test-only-share-token';
   const share = await (await call('share')).json();

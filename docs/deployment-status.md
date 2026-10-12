@@ -13,7 +13,7 @@ Date: 2026-10-10 (Asia/Shanghai)
   subscription has $0 base and usage charges beyond free allowances.
 - Live website: https://never-map.never-map-0411yiang0411.workers.dev
 - D1: never-map-db; R2: never-map-images, Standard storage, private.
-- Production version: 87ae8918-601b-441d-969d-02533a3bcff4.
+- Production version: b97fd648-c63a-4bd7-b7fb-8ba74ee6b484.
 - Usage policy: 90% warning, 99% cloud stop; verification hourly, expires
   after two hours; unknown/month rollover fails closed. Counters never lower.
 - Codex hourly heartbeat `never-map` created ACTIVE for warning/pause/recovery
@@ -52,6 +52,16 @@ Date: 2026-10-10 (Asia/Shanghai)
   asset checks recorded in `.cache/sidebar-assets-verification.json`.
   The browser-control connection timed out on this turn, so live clicking and
   screenshot verification are not claimed.
+- 2026-10-12: editable tables deployed: insert, edit cells, add/delete rows
+  and columns, header, cell bold/highlight/alignment, column width/font size,
+  TSV copy/export, HTML/Excel paste conversion, rectangular cell-range paste.
+  Public Excalidraw onPaste hook and capture fallback share event deduplication.
+  Cells/styles remain structured in richTable metadata and preserve display
+  scaling when reopened. Thirty-six model/backend/quota tests pass, including
+  multiline/quoted/empty Excel cells and shared cloud table metadata roundtrip.
+  Live assets and healthy quota verified without changing user canvases;
+  `.cache/table-verification.json` holds the result. Browser clipboard/visual
+  interaction was not verified; previous browser control remains unavailable.
 - Final production checks also passed: unauthorized scene requests rejected,
   repeated fresh quota verification makes no extra R2 requests, blank canvas
   intact. Proof: `.cache/final-check.json`.

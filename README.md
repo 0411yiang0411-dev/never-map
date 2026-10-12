@@ -134,6 +134,29 @@ The existing account-level quota guards cover all canvases together. A 200
 canvas protection limit keeps this personal deployment within a modest data
 footprint. Creating a canvas does not create a paid service or a new bucket.
 
+## Editable tables
+
+Use `插入表格` to create a grid. Edit cell contents, insert/delete the selected
+row or column, toggle the first-row header, set bold/highlight/alignment,
+change column width/font size, and copy back to Excel. Tab advances across
+cells, Enter moves down, Shift+Enter adds a cell line break. Save to canvas,
+then double-click the table or select `编辑表格` for later edits.
+
+Pasting HTML tables or tab-delimited spreadsheet data on the canvas creates
+an editable table automatically. Pasting a rectangular range into an editor
+cell expands the grid as needed. Chinese, empty cells, quoted tabs and
+multiline Excel values are preserved; ordinary prose stays ordinary text.
+Merged HTML cells are expanded to a regular grid, retaining text in the
+top-left cell. Formula strings are displayed as text, not calculated.
+
+Structured `customData.richTable` retains cells/styles for subsequent editing
+and shared cloud reload. SVG is only the canvas/export rendering. Existing
+element IDs, positions and resized display scales are retained on editing.
+All tables use the current scene synchronization, private image storage and
+existing free-quota guards; no new paid service is enabled. Limits are 100
+rows, 30 columns and 50,000 total characters. Oversized data is rejected with
+a message rather than truncated. Rendering has an additional safe pixel limit.
+
 An hourly Codex heartbeat checks public quota status and notifies only on
 meaningful warning/pause/recovery changes. This reminder requires Codex to
 be available; server checks and stops run independently.
