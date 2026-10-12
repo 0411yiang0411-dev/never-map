@@ -79,14 +79,14 @@ export default function Workspace() {
   async function refreshList(){setCanvases((await json(await request('canvases'))).canvases);}
   async function switchCanvas(id:string) {
     if(id===canvasId || working) return;
-    if(document.querySelector('.note-modal,.inline-rich-editor,.nm-table-editor')){setMessage('请先完成文字或表格编辑');return;}
+    if(document.querySelector('.note-modal,.inline-rich-editor,.nm-table-editor,.nm-table-inline')){setMessage('请先完成文字或表格编辑');return;}
     setWorking(true);
     try {if(!(await board.current?.flush()))return;setCanvasId(id);setMessage('正在切换画布…');}
     finally {setWorking(false);}
   }
   async function submitName() {
     if(working || !name.trim())return;
-    if(document.querySelector('.note-modal,.inline-rich-editor,.nm-table-editor')){setMessage('请先完成文字或表格编辑');return;}
+    if(document.querySelector('.note-modal,.inline-rich-editor,.nm-table-editor,.nm-table-inline')){setMessage('请先完成文字或表格编辑');return;}
     setWorking(true);
     try {
       if(dialog==='new') {
@@ -224,7 +224,7 @@ const Board=forwardRef<BoardHandle,{id:string;name:string;connected:boolean;lock
       finally {loadingRef.current=false;if(mounted.current)setLoading(false);}
     })();
     const poll=setInterval(async()=>{
-      if(!connected || !active.current || pending.current || flight.current || loadingRef.current || document.visibilityState!=='visible' || document.querySelector('.note-modal,.inline-rich-editor,.nm-table-editor') || api.current?.getAppState().editingTextElement)return;
+      if(!connected || !active.current || pending.current || flight.current || loadingRef.current || document.visibilityState!=='visible' || document.querySelector('.note-modal,.inline-rich-editor,.nm-table-editor,.nm-table-inline') || api.current?.getAppState().editingTextElement)return;
       try {const response=await request(`${path}?after=${revision.current || 0}`);if(response.status!==204)await applyRemote(await json(response),true);}
       catch(error){active.current=false;status(`同步暂停：${(error as Error).message}`);}
     },5000);

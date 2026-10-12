@@ -95,7 +95,7 @@ test('formatted note metadata survives save and reload for shared editing',async
 });
 test('editable table cells and styles survive cloud save for another device',async()=>{
   env.SHARE_TOKEN='test-only-table-share';
-  const scene={elements:[{id:'table',type:'image',fileId:'svg-table',customData:{richTable:{version:1,cells:[['名称','数量'],['纸张','20']],header:true,columnWidth:140,fontSize:16,styles:{'1:1':{bold:true}}}}}],files:{},appState:{}};
+  const scene={elements:[{id:'table',type:'image',fileId:'svg-table',customData:{richTable:{version:2,cells:[['名称','数量'],['纸张','20']],header:true,columnWidth:140,columnWidths:[100,200],rowHeights:[72,80],merges:[{r:0,c:0,rows:1,columns:2}],fontSize:16,styles:{'1:1':{bold:true}}}}}],files:{},appState:{}};
   assert.equal((await call('scene','PUT',JSON.stringify({revision:0,scene}),{'Content-Type':'application/json'})).status,200);
   const loaded=await(await call('scene','GET',undefined,{Authorization:'Bearer test-only-table-share'})).json();
   assert.deepEqual(loaded.scene,scene);

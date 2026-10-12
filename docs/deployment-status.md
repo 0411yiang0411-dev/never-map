@@ -13,7 +13,7 @@ Date: 2026-10-10 (Asia/Shanghai)
   subscription has $0 base and usage charges beyond free allowances.
 - Live website: https://never-map.never-map-0411yiang0411.workers.dev
 - D1: never-map-db; R2: never-map-images, Standard storage, private.
-- Production version: b97fd648-c63a-4bd7-b7fb-8ba74ee6b484.
+- Production version: 6f79fd5e-45bc-44a1-9bc8-7b3d3ff861e3.
 - Usage policy: 90% warning, 99% cloud stop; verification hourly, expires
   after two hours; unknown/month rollover fails closed. Counters never lower.
 - Codex hourly heartbeat `never-map` created ACTIVE for warning/pause/recovery
@@ -65,6 +65,14 @@ Date: 2026-10-10 (Asia/Shanghai)
 - Final production checks also passed: unauthorized scene requests rejected,
   repeated fresh quota verification makes no extra R2 requests, blank canvas
   intact. Proof: `.cache/final-check.json`.
+- 2026-10-12: table editing now happens directly on the canvas, with no modal.
+  Left sidebar controls provide merge/unmerge, alignment, bold, highlight,
+  row/column insertion and deletion, and individual widths/heights. Canvas
+  boundary dragging and range selection are implemented. Merged cells preserve
+  underlying values; clipboard HTML spans and cloud metadata retain merges.
+  Forty tests, production build and Worker dry-run passed. Live inline editor,
+  sidebar/resize assets and healthy quota verified read-only, without changing
+  user canvases. Browser interaction remains visually unverified.
 - Browser control: tab inventory is available; page DOM and screenshot calls
   time out. No successful browser screenshot or token edit is claimed.
 

@@ -8,8 +8,9 @@ def get(path):
 page=get('/')
 bundle=get(re.search(r'src="([^"]+\.js)"',page).group(1))
 css=get(re.search(r'href="([^"]+\.css)"',page).group(1))
-for label in ['插入表格','编辑表格','添加行','删除行','添加列','删除列','复制表格','保存到画布']:assert label in bundle
-assert 'richTable' in bundle and '.nm-table-editor' in css
+for label in ['插入表格','编辑表格','添加行','删除行','添加列','删除列','合并单元格','取消合并','完成编辑']:assert label in bundle
+assert 'richTable' in bundle and '.nm-table-inline' in css and '.nm-table-properties' in css
+assert '.nm-table-col-resize' in css and '.nm-table-row-resize' in css
 status=json.loads(get('/api/status'));assert not status['paused']
 (root/'.cache/table-verification.json').write_text(json.dumps({'published_table_controls':True,'structured_model':True,'quota_healthy':True,'browser_paste_visual_verification':False},indent=2),encoding='utf8')
-print('PASS: live table/editor assets, structured table metadata and quota status; browser paste not visually verified')
+print('PASS: live inline table/sidebar/resize assets, structured table metadata and quota status; browser interaction not visually verified')
