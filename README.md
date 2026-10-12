@@ -144,6 +144,11 @@ merge/unmerge, bold, highlight, alignment, width/height, header and copy.
 Tab advances across cells, Enter moves down, Shift+Enter adds a line break.
 Changes commit automatically after 350ms and use the existing cloud sync.
 Click outside, press Escape or choose `完成编辑` to finish editing.
+While editing, wheel/trackpad scrolling pans the canvas, Shift-wheel pans
+horizontally, and middle-button dragging pans without closing the editor.
+Ctrl/Command-wheel zooms about the cursor. Dragging a selection near a viewport
+edge automatically pans in that direction, even while the pointer stays still;
+offscreen cells remain selectable without shrinking the whole table.
 Merging displays the upper-left value and retains other cell values;
 unmerging restores their visibility.
 

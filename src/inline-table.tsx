@@ -4,6 +4,7 @@ import type {ExcalidrawImperativeAPI} from '@excalidraw/excalidraw/types';
 import {normalizeTable,changeAxis,tableLayout,selectionBounds,cellOwner,mergeSelection,toTSV} from './table-model.mjs';
 import {clipboardTable,writeTable} from './table-tools';
 import './inline-table.css';
+import {wheelPixels,edgeVelocity,tableCellAt} from './table-navigation.mjs';
 
 export function InlineTable({initial,source,api,onClose,onStatus}:{initial:any;source:any;api:ExcalidrawImperativeAPI;onClose:()=>void;onStatus:(s:string)=>void}) {
   const [table,setTable]=useState<any>(()=>normalizeTable(initial));
@@ -13,8 +14,11 @@ export function InlineTable({initial,source,api,onClose,onStatus}:{initial:any;s
   const [message,setMessage]=useState('');
   const changed=useRef(false),busy=useRef(false),queued=useRef(false),mounted=useRef(true),timer=useRef<ReturnType<typeof setTimeout>|null>(null);
   const dragging=useRef(false);
+  const gestureCleanup=useRef<(()=>void)|null>(null),spaceHeld=useRef(false);
+  const positionRef=useRef(position),locateRef=useRef<()=>void>(()=>{});
   const measure=useMemo(()=>{const ctx=document.createElement('canvas').getContext('2d')!;return(text:string,size:number)=>{ctx.font=`700 ${size}px Arial,Microsoft YaHei,sans-serif`;return ctx.measureText(text).width;};},[]);
   const layout=useMemo(()=>tableLayout(table,measure),[table,measure]);
+  const layoutRef=useRef(layout);layoutRef.current=layout;
   const selected=selectionBounds(table,anchor,end);
   const selectedRef=useRef(selected);selectedRef.current=selected;
   async function commit(){
@@ -32,15 +36,20 @@ export function InlineTable({initial,source,api,onClose,onStatus}:{initial:any;s
   function axis(type:string,remove=false){try{const next=changeAxis(model.current,type,type==='row'?selected.r:selected.c,remove);update(next);const r=Math.min(anchor[0],next.cells.length-1),c=Math.min(anchor[1],next.cells[0].length-1);setAnchor([r,c]);setEnd([r,c]);}catch(error){setMessage((error as Error).message);}}
   function dimension(type:'row'|'column',value:number){const next={...model.current};const values=[...(type==='row'?next.rowHeights:next.columnWidths)];const range=selectedRef.current;for(let i=type==='row'?range.r:range.c;i<=(type==='row'?range.endR:range.endC);i++)values[i]=value;if(type==='row')next.rowHeights=values;else next.columnWidths=values;update(next);}
   async function finish(){if(timer.current)clearTimeout(timer.current);while(busy.current)await new Promise(resolve=>setTimeout(resolve,20));await commit();if(!changed.current)onClose();}
+  function panBy(x:number,y:number){const app=api.getAppState();api.updateScene({appState:{scrollX:app.scrollX+x/app.zoom.value,scrollY:app.scrollY+y/app.zoom.value}});locateRef.current();}
+  function viewport(){const app=api.getAppState();const panel=document.querySelector('.excalidraw .selected-shape-actions')?.getBoundingClientRect();return {left:Math.max(app.offsetLeft+12,panel?panel.right+12:app.offsetLeft+12),right:app.offsetLeft+app.width-24,top:app.offsetTop+64,bottom:app.offsetTop+app.height-40};}
   function choose(event:React.PointerEvent,r:number,c:number){
+    if(event.button!==0||spaceHeld.current)return;
     if(event.shiftKey){event.preventDefault();setEnd([r,c]);return;}
     setAnchor([r,c]);setEnd([r,c]);
-    const start={x:event.clientX,y:event.clientY},base=[r,c];
-    const move=(e:PointerEvent)=>{if(Math.hypot(e.clientX-start.x,e.clientY-start.y)<5)return;const target=document.elementFromPoint(e.clientX,e.clientY)?.closest<HTMLElement>('[data-table-cell]');if(target&&root.current?.contains(target)){dragging.current=true;setAnchor(base);setEnd([Number(target.dataset.row),Number(target.dataset.column)]);}};
-    const stop=()=>{window.removeEventListener('pointermove',move);window.removeEventListener('pointerup',stop);setTimeout(()=>{dragging.current=false;},0);};window.addEventListener('pointermove',move);window.addEventListener('pointerup',stop,{once:true});
+    gestureCleanup.current?.();const start={x:event.clientX,y:event.clientY},base=[r,c];let pointer=start,frame=0,last=performance.now();
+    const extend=()=>{const cell=tableCellAt(pointer,positionRef.current,layoutRef.current);if(cell){setAnchor(base);setEnd([cell.r,cell.c]);}};
+    const tick=(now:number)=>{const dt=Math.min(32,now-last)/1000;last=now;if(dragging.current){const speed=edgeVelocity(pointer,viewport());if(speed.x||speed.y)panBy(-speed.x*dt,-speed.y*dt);extend();}frame=requestAnimationFrame(tick);};
+    const move=(e:PointerEvent)=>{pointer={x:e.clientX,y:e.clientY};if(!dragging.current&&Math.hypot(pointer.x-start.x,pointer.y-start.y)<5)return;dragging.current=true;e.preventDefault();extend();};
+    const stop=()=>{cancelAnimationFrame(frame);window.removeEventListener('pointermove',move);window.removeEventListener('pointerup',stop);window.removeEventListener('pointercancel',stop);gestureCleanup.current=null;setTimeout(()=>{dragging.current=false;},0);};gestureCleanup.current=stop;window.addEventListener('pointermove',move,{passive:false});window.addEventListener('pointerup',stop,{once:true});window.addEventListener('pointercancel',stop,{once:true});frame=requestAnimationFrame(tick);
   }
   function resize(event:React.PointerEvent,index:number,type:'row'|'column'){
-    event.preventDefault();event.stopPropagation();const start={x:event.clientX,y:event.clientY},base=type==='row'?layout.heights[index]:table.columnWidths[index];
+    if(event.button!==0||spaceHeld.current)return;event.preventDefault();event.stopPropagation();const start={x:event.clientX,y:event.clientY},base=type==='row'?layout.heights[index]:table.columnWidths[index];
     const move=(e:PointerEvent)=>{const dx=e.clientX-start.x,dy=e.clientY-start.y,cos=Math.cos(position.angle),sin=Math.sin(position.angle);const delta=type==='column'?(dx*cos+dy*sin)/position.sx:(-dx*sin+dy*cos)/position.sy;const values=[...(type==='row'?model.current.rowHeights:model.current.columnWidths)];values[index]=Math.round(base+delta);update({...model.current,[type==='row'?'rowHeights':'columnWidths']:values});};
     const stop=()=>{window.removeEventListener('pointermove',move);window.removeEventListener('pointerup',stop);};window.addEventListener('pointermove',move);window.addEventListener('pointerup',stop,{once:true});
   }
@@ -50,16 +59,20 @@ export function InlineTable({initial,source,api,onClose,onStatus}:{initial:any;s
   }
   function key(event:React.KeyboardEvent,r:number,c:number){event.stopPropagation();if(event.key==='Escape'){event.preventDefault();void finish();return;}if(event.key!=='Tab'&&!(event.key==='Enter'&&!event.shiftKey))return;event.preventDefault();const columns=table.cells[0].length,owner=cellOwner(table,r,c),step=event.shiftKey?-1:1;let index=event.key==='Enter'?(r+owner.rows)*columns+c:r*columns+c+step;while(index>=0&&index<table.cells.length*columns){const nr=Math.floor(index/columns),nc=index%columns,next=cellOwner(table,nr,nc);if(next.r===nr&&next.c===nc)break;index+=step;}if(index<0)return;if(index>=table.cells.length*columns){if(table.cells.length>=100)return;update(changeAxis(model.current,'row',table.cells.length-1));index=table.cells.length*columns+c;}const nr=Math.floor(index/columns),nc=index%columns;setAnchor([nr,nc]);setEnd([nr,nc]);setTimeout(()=>root.current?.querySelector<HTMLTextAreaElement>(`textarea[data-row="${nr}"][data-column="${nc}"]`)?.focus(),0);}
   useEffect(()=>{
-    const locate=()=>{const app=api.getAppState(),s=live.current,meta=s.customData.richTable;const sx=s.width/(meta.layoutWidth || meta.cells[0].length*meta.columnWidth),sy=s.height/(meta.layoutHeight || layout.height),angle=s.angle || 0,cos=Math.cos(angle),sin=Math.sin(angle);setPosition({left:(s.x+app.scrollX+s.width/2-s.width*cos/2+s.height*sin/2)*app.zoom.value+app.offsetLeft,top:(s.y+app.scrollY+s.height/2-s.width*sin/2-s.height*cos/2)*app.zoom.value+app.offsetTop,sx:sx*app.zoom.value,sy:sy*app.zoom.value,angle});};
+    const locate=()=>{const app=api.getAppState(),s=live.current,meta=s.customData.richTable;const sx=s.width/(meta.layoutWidth || meta.cells[0].length*meta.columnWidth),sy=s.height/(meta.layoutHeight || layoutRef.current.height),angle=s.angle || 0,cos=Math.cos(angle),sin=Math.sin(angle);const next={left:(s.x+app.scrollX+s.width/2-s.width*cos/2+s.height*sin/2)*app.zoom.value+app.offsetLeft,top:(s.y+app.scrollY+s.height/2-s.width*sin/2-s.height*cos/2)*app.zoom.value+app.offsetTop,sx:sx*app.zoom.value,sy:sy*app.zoom.value,angle};positionRef.current=next;setPosition(next);};locateRef.current=locate;
     const find=()=>setSidebar(previous=>{const target=document.querySelector('.excalidraw .selected-shape-actions .panelColumn');return previous===target?previous:target;});locate();find();const tick=setInterval(locate,150),observer=new MutationObserver(find);observer.observe(document.body,{childList:true,subtree:true});
-    const outside=(event:PointerEvent)=>{const target=event.target as Element;if(root.current?.contains(target)||target.closest('.nm-table-properties'))return;void finish();};document.addEventListener('pointerdown',outside,true);
+    const outside=(event:PointerEvent)=>{const target=event.target as Element;if(target.closest('.nm-table-properties'))return;
+      if(event.button===1||(event.button===0&&spaceHeld.current)){event.preventDefault();event.stopPropagation();gestureCleanup.current?.();let point={x:event.clientX,y:event.clientY};const move=(e:PointerEvent)=>{e.preventDefault();panBy(e.clientX-point.x,e.clientY-point.y);point={x:e.clientX,y:e.clientY};};const stop=()=>{window.removeEventListener('pointermove',move);window.removeEventListener('pointerup',stop);window.removeEventListener('pointercancel',stop);gestureCleanup.current=null;};gestureCleanup.current=stop;window.addEventListener('pointermove',move,{passive:false});window.addEventListener('pointerup',stop,{once:true});window.addEventListener('pointercancel',stop,{once:true});return;}
+      if(root.current?.contains(target)||event.button!==0)return;void finish();};document.addEventListener('pointerdown',outside,true);
+    const wheel=(event:WheelEvent)=>{if(!root.current?.contains(event.target as Node))return;event.preventDefault();event.stopPropagation();const app=api.getAppState();if(event.ctrlKey||event.metaKey){const zoom=Math.max(.1,Math.min(30,app.zoom.value*Math.exp(-event.deltaY*.01))),x=event.clientX-app.offsetLeft,y=event.clientY-app.offsetTop;api.updateScene({appState:{zoom:{value:zoom as any},scrollX:app.scrollX+x/zoom-x/app.zoom.value,scrollY:app.scrollY+y/zoom-y/app.zoom.value}});locate();}else{const delta=wheelPixels(event,app.height);panBy(-delta.x,-delta.y);}};document.addEventListener('wheel',wheel,{capture:true,passive:false});
+    const space=(event:KeyboardEvent)=>{if(event.code!=='Space')return;if(event.type==='keyup'){spaceHeld.current=false;return;}if((event.target as Element).closest('textarea,input,[contenteditable="true"]'))return;event.preventDefault();spaceHeld.current=true;};const blur=()=>{spaceHeld.current=false;gestureCleanup.current?.();};window.addEventListener('keydown',space,true);window.addEventListener('keyup',space,true);window.addEventListener('blur',blur);
     const warn=(event:BeforeUnloadEvent)=>{if(changed.current||busy.current){event.preventDefault();event.returnValue='';}};window.addEventListener('beforeunload',warn);
-    return()=>{mounted.current=false;clearInterval(tick);observer.disconnect();document.removeEventListener('pointerdown',outside,true);window.removeEventListener('beforeunload',warn);if(timer.current)clearTimeout(timer.current);};
+    return()=>{mounted.current=false;gestureCleanup.current?.();clearInterval(tick);observer.disconnect();document.removeEventListener('pointerdown',outside,true);document.removeEventListener('wheel',wheel,true);window.removeEventListener('keydown',space,true);window.removeEventListener('keyup',space,true);window.removeEventListener('blur',blur);window.removeEventListener('beforeunload',warn);if(timer.current)clearTimeout(timer.current);};
   },[]);
   let edgeX=0,edgeY=0;
   const dark=api.getAppState().theme==='dark';
   return <>
-    {sidebar && createPortal(<section className={`nm-table-properties ${dark?'dark':''}`} aria-label="表格编辑栏"><h3>表格</h3><small>点击编辑文字；拖选或 Shift＋点击选择区域</small>
+    {sidebar && createPortal(<section className={`nm-table-properties ${dark?'dark':''}`} aria-label="表格编辑栏"><h3>表格</h3><small>滚轮移动画布；中键拖动平移；框选到边缘自动滚动</small><small>点击编辑文字；拖选或 Shift＋点击选择区域</small>
       <div className="nm-table-property-buttons"><button onClick={()=>axis('row')}>添加行</button><button onClick={()=>axis('row',true)} disabled={table.cells.length<=1}>删除行</button><button onClick={()=>axis('column')}>添加列</button><button onClick={()=>axis('column',true)} disabled={table.cells[0].length<=1}>删除列</button><button onClick={()=>update(mergeSelection(table,selected))}>合并单元格</button><button onClick={()=>update(mergeSelection(table,selected,true))}>取消合并</button><button onClick={()=>format({bold:!(table.styles[`${selected.r}:${selected.c}`]?.bold??(table.header&&selected.r===0))})}>粗体</button><button onClick={()=>format({fill:table.styles[`${selected.r}:${selected.c}`]?.fill?'':'#fff1ad'})}>单元格高亮</button></div>
       <label>对齐<select value={table.styles[`${selected.r}:${selected.c}`]?.align || 'left'} onChange={e=>format({align:e.target.value})}><option value="left">左对齐</option><option value="center">居中</option><option value="right">右对齐</option></select></label>
       <label>选中列宽<Dimension key={`w:${selected.c}:${table.columnWidths[selected.c]}`} value={table.columnWidths[selected.c]} onChange={v=>dimension('column',v)}/></label><label>选中行高<Dimension key={`h:${selected.r}:${layout.heights[selected.r]}`} value={layout.heights[selected.r]} onChange={v=>dimension('row',v)}/></label>

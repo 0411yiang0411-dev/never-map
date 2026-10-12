@@ -13,7 +13,7 @@ Date: 2026-10-10 (Asia/Shanghai)
   subscription has $0 base and usage charges beyond free allowances.
 - Live website: https://never-map.never-map-0411yiang0411.workers.dev
 - D1: never-map-db; R2: never-map-images, Standard storage, private.
-- Production version: 6f79fd5e-45bc-44a1-9bc8-7b3d3ff861e3.
+- Production version: ba4f7f93-295a-4f2a-81dc-8c1c29d49973.
 - Usage policy: 90% warning, 99% cloud stop; verification hourly, expires
   after two hours; unknown/month rollover fails closed. Counters never lower.
 - Codex hourly heartbeat `never-map` created ACTIVE for warning/pause/recovery
@@ -75,6 +75,15 @@ Date: 2026-10-10 (Asia/Shanghai)
   user canvases. Browser interaction remains visually unverified.
 - Browser control: tab inventory is available; page DOM and screenshot calls
   time out. No successful browser screenshot or token edit is claimed.
+- 2026-10-12: fixed inline table navigation interception. Wheel/trackpad pan,
+  Shift-wheel horizontal pan, cursor-centered Ctrl/Command-wheel zoom and
+  middle-button dragging now work during table editing. Range selection uses
+  transformed geometry rather than DOM hits and continuously pans at viewport
+  edges to reach offscreen cells. Pointer release/cancel/blur stops the gesture.
+  Forty-three tests, frontend build and Worker dry-run passed. Account plan
+  and healthy quota checked before deployment; published navigation assets
+  verified over HTTPS. Existing scene contents were not modified. Browser tab
+  binding timed out again; actual drag/scroll interaction remains unverified.
 
 Personal access key: `.cache/access-key.txt`, restricted to Administrator and
 SYSTEM. API token is not stored in project files; monitor and access keys are
