@@ -134,6 +134,19 @@ The existing account-level quota guards cover all canvases together. A 200
 canvas protection limit keeps this personal deployment within a modest data
 footprint. Creating a canvas does not create a paid service or a new bucket.
 
+## Automatic alignment
+
+Automatic object alignment defaults to on. The toolbar `自动对齐` toggle and
+Alt+S change it; the preference is retained in this browser across refreshes
+and canvas switches. Excalidraw displays native alignment guides when moving
+objects, creating shapes or resizing their edges/handles. Object snapping
+uses nearby bounds, centers and equal spacing, with grid mode disabled while
+automatic alignment is on. Ctrl/Command temporarily bypasses snapping.
+Line and unbound straight-arrow endpoint editing additionally snaps to other
+endpoints and object edges/centers within 8 screen pixels, with visual guides.
+Rotated lines preserve other point positions. Shift angle constraints, bound
+arrow connections and elbow-arrow routing retain their native behavior.
+
 ## Editable tables
 
 Use `插入表格` to create a grid. Double-click a table or select `编辑表格`

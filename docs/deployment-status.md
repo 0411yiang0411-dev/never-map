@@ -13,7 +13,7 @@ Date: 2026-10-10 (Asia/Shanghai)
   subscription has $0 base and usage charges beyond free allowances.
 - Live website: https://never-map.never-map-0411yiang0411.workers.dev
 - D1: never-map-db; R2: never-map-images, Standard storage, private.
-- Production version: ba4f7f93-295a-4f2a-81dc-8c1c29d49973.
+- Production version: 86dfaf7c-2654-4706-84b0-a6b38d8bc336.
 - Usage policy: 90% warning, 99% cloud stop; verification hourly, expires
   after two hours; unknown/month rollover fails closed. Counters never lower.
 - Codex hourly heartbeat `never-map` created ACTIVE for warning/pause/recovery
@@ -88,3 +88,15 @@ Date: 2026-10-10 (Asia/Shanghai)
 Personal access key: `.cache/access-key.txt`, restricted to Administrator and
 SYSTEM. API token is not stored in project files; monitor and access keys are
 Cloudflare Worker secrets. Keep secrets out of Git and R2 private.
+
+- 2026-10-12: automatic alignment defaults on, with a toolbar toggle, Alt+S
+  and browser-persisted preference. Native object snapping covers moving,
+  resizing and shape creation with guides. Straight line/unbound arrow endpoint
+  editing additionally snaps to endpoint and object-edge/center references.
+  Ctrl/Command bypasses snapping; Shift constraints, existing bindings and
+  elbow routing retain native behavior. Tests verify zoom tolerance and rotated
+  endpoint edits preserving other world coordinates. Forty-five tests, frontend
+  build and Worker dry-run pass. Backend and existing canvas data are unchanged.
+  Deployed alignment controls/preference assets and healthy quota verified
+  over HTTPS. Actual browser dragging remains unverified due the existing
+  browser-control timeout.

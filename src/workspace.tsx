@@ -3,6 +3,7 @@ import {Excalidraw,exportToBlob,serializeAsJSON,CaptureUpdateAction} from '@exca
 import type {ExcalidrawImperativeAPI,BinaryFiles} from '@excalidraw/excalidraw/types';
 import {RichNotes} from './rich-notes';
 import {TableTools,handleTablePaste} from './table-tools';
+import {AutoAlign} from './auto-align-tools';
 import './workspace.css';
 
 type Drawing={elements:any[];appState:any;files:BinaryFiles};
@@ -127,6 +128,7 @@ const Board=forwardRef<BoardHandle,{id:string;name:string;connected:boolean;lock
   const [apiReady,setApiReady]=useState<ExcalidrawImperativeAPI|null>(null);
   const [selection,setSelection]=useState<{id:string;version:number}|null>(null);
   const [tableSelection,setTableSelection]=useState<{id:string;version:number}|null>(null);
+  const [alignEnabled,setAlignEnabled]=useState(()=>localStorage.getItem('never-map-auto-align')!=='off');
   const api=useRef<ExcalidrawImperativeAPI|null>(null);
   const latest=useRef<Drawing>(blank());
   const revision=useRef<number|null>(null);
@@ -235,8 +237,8 @@ const Board=forwardRef<BoardHandle,{id:string;name:string;connected:boolean;lock
   async function exportDrawing(){if(!api.current)return;download(new Blob([serializeAsJSON(api.current.getSceneElements(),api.current.getAppState(),api.current.getFiles(),'local')],{type:'application/json'}),`${name}.excalidraw`);}
   async function exportPNG(){if(!api.current)return;try{download(await exportToBlob({elements:api.current.getSceneElements(),appState:api.current.getAppState(),files:api.current.getFiles()}),`${name}.png`);}catch{status('PNG 导出失败，请导出画布文件');}}
   return <>
-    <div className="board-toolbar"><RichNotes api={apiReady} selection={selection} onStatus={status}/><TableTools api={apiReady} selection={tableSelection} onStatus={status}/><button onClick={exportDrawing}>导出备份</button><button onClick={exportPNG}>导出 PNG</button><span>{name}{loading?' · 正在读取…':''}</span></div>
-    <section className="canvas" data-loading={loading || locked}>{initial && <Excalidraw initialData={initial} langCode="zh-CN" onPaste={(data,event)=>handleTablePaste(api.current,event,data.text || '',status)} excalidrawAPI={value=>{api.current=value;setApiReady(value);}} onChange={(elements,appState,files)=>{
+    <div className="board-toolbar"><RichNotes api={apiReady} selection={selection} onStatus={status}/><TableTools api={apiReady} selection={tableSelection} onStatus={status}/><AutoAlign api={apiReady} enabled={alignEnabled} onToggle={()=>setAlignEnabled(previous=>{const next=!previous;localStorage.setItem('never-map-auto-align',next?'on':'off');return next;})}/><button onClick={exportDrawing}>导出备份</button><button onClick={exportPNG}>导出 PNG</button><span>{name}{loading?' · 正在读取…':''}</span></div>
+    <section className="canvas" data-loading={loading || locked}>{initial && <Excalidraw initialData={initial} langCode="zh-CN" objectsSnapModeEnabled={alignEnabled} gridModeEnabled={alignEnabled?false:undefined} onPaste={(data,event)=>handleTablePaste(api.current,event,data.text || '',status)} excalidrawAPI={value=>{api.current=value;setApiReady(value);}} onChange={(elements,appState,files)=>{
       const picked=elements.find(e=>!e.isDeleted && (appState.selectedElementIds[e.id] || appState.editingTextElement?.id===e.id) && (e.type==='text' || e.customData?.richNote)) || elements.find(e=>e.type==='text' && !e.isDeleted && e.containerId && appState.selectedElementIds[e.containerId]);
       setSelection(previous=>picked?previous?.id===picked.id&&previous.version===picked.version?previous:{id:picked.id,version:picked.version}:previous?null:previous);
       const table=elements.find(e=>!e.isDeleted&&appState.selectedElementIds[e.id]&&e.customData?.richTable);
