@@ -1,9 +1,14 @@
-import {useEffect} from 'react';
+import {useEffect,useRef,useState} from 'react';
 import {CaptureUpdateAction,convertToExcalidrawElements,newElementWith} from '@excalidraw/excalidraw';
 import type {ExcalidrawImperativeAPI} from '@excalidraw/excalidraw/types';
 import {appendPenSamples,createTouchGesture,updateTouchGesture,useRawPen} from './device-input.mjs';
+import {penSettings,pressureGeometry,pressureSVG} from './pen-pressure.mjs';
+import {PenSettings} from './pen-settings';
 
 export function DeviceInput({api}:{api:ExcalidrawImperativeAPI|null}){
+  const [settings,setSettings]=useState(()=>{try{return penSettings(JSON.parse(localStorage.getItem('never-map-pen-settings')||'{}'));}catch{return penSettings();}});
+  const settingsRef=useRef(settings);settingsRef.current=settings;
+  const changeSettings=(value:any)=>{const next=penSettings(value);setSettings(next);localStorage.setItem('never-map-pen-settings',JSON.stringify(next));};
   useEffect(()=>{
     if(!api)return;
     const touches=new Map<number,{x:number;y:number}>(),palms=new Set<number>();let pen:any=null,frame=0,touchFrame=0,gesture:any=null,nativePen:number|null=null;
@@ -14,6 +19,12 @@ export function DeviceInput({api}:{api:ExcalidrawImperativeAPI|null}){
     const flushTouch=()=>{if(touchFrame){cancelAnimationFrame(touchFrame);touchFrame=0;}if(!gesture||!touches.size)return;const next=updateTouchGesture(gesture,[...touches.values()]);api.updateScene({appState:{scrollX:next.scrollX,scrollY:next.scrollY,zoom:{value:next.zoom as any}},captureUpdate:CaptureUpdateAction.NEVER});};
     const resetGesture=()=>{gesture=touches.size?createTouchGesture([...touches.values()],view()):null;};
     const flush=(finished=false)=>{if(!pen)return;if(frame){cancelAnimationFrame(frame);frame=0;}const stroke=pen,points=stroke.points.map((p:number[])=>[...p]);if(points.length===1)points.push([points[0][0]+.001,points[0][1]+.001]);
+      if(stroke.settings.enabled){const geometry=pressureGeometry(stroke.points,stroke.pressures,stroke.settings);if(!finished){const app=api.getAppState();stroke.preview.setAttribute('viewBox',`0 0 ${window.innerWidth} ${window.innerHeight}`);stroke.group.setAttribute('transform',`translate(${app.offsetLeft+(stroke.x+app.scrollX)*app.zoom.value} ${app.offsetTop+(stroke.y+app.scrollY)*app.zoom.value}) scale(${app.zoom.value})`);stroke.path.setAttribute('d',geometry.path);return;}
+        const svg=pressureSVG(geometry,stroke.element.strokeColor,stroke.element.opacity),fileId=stroke.element.id+'-pressure',dataURL='data:image/svg+xml;base64,'+btoa(svg);
+        api.addFiles([{id:fileId as any,mimeType:'image/svg+xml',dataURL:dataURL as any,created:Date.now()}]);
+        const [image]=convertToExcalidrawElements([{type:'image',x:stroke.x+geometry.x,y:stroke.y+geometry.y,width:geometry.width,height:geometry.height,fileId:fileId as any,status:'saved',scale:[1,1],customData:{neverMapPen:true,pressurePenV1:{settings:stroke.settings,points:stroke.points,pressures:stroke.pressures}}} as any]);
+        api.updateScene({elements:[...api.getSceneElements(),image],captureUpdate:CaptureUpdateAction.IMMEDIATELY});stroke.preview.remove();return;
+      }
       const xs=points.map((p:number[])=>p[0]),ys=points.map((p:number[])=>p[1]);
       const updated=newElementWith(stroke.element,{points,width:Math.max(...xs)-Math.min(...xs),height:Math.max(...ys)-Math.min(...ys),lastCommittedPoint:points[points.length-1]} as any);stroke.element=updated;
       const elements=api.getSceneElements();api.updateScene({elements:elements.some(e=>e.id===updated.id)?elements.map(e=>e.id===updated.id?updated:e):[...elements,updated],captureUpdate:finished?CaptureUpdateAction.IMMEDIATELY:CaptureUpdateAction.NEVER});
@@ -28,8 +39,11 @@ export function DeviceInput({api}:{api:ExcalidrawImperativeAPI|null}){
       stop(event);if(pen)return;const v=view(),x=(event.clientX-v.offsetLeft)/v.zoom-v.scrollX,y=(event.clientY-v.offsetTop)/v.zoom-v.scrollY;
       // Raw fixed-width polyline: no global stroke smoothing or pressure-driven
       // outline recomputation. Appending samples never changes prior vertices.
-      const element=convertToExcalidrawElements([{type:'line',x,y,points:[[0,0]],strokeColor:app.currentItemStrokeColor,strokeWidth:app.currentItemStrokeWidth,opacity:app.currentItemOpacity,roughness:0,roundness:null,strokeStyle:'solid',startArrowhead:null,endArrowhead:null,customData:{neverMapPen:true,rawPenV2:true}}])[0];
-      pen={id:event.pointerId,x,y,element,points:[],pressures:[]};samples(event);try{(event.target as Element).setPointerCapture(event.pointerId);}catch{}flush();
+      const selectedSettings={...settingsRef.current};
+      const element=convertToExcalidrawElements([{type:'line',x,y,points:[[0,0]],strokeColor:app.currentItemStrokeColor,strokeWidth:selectedSettings.width,opacity:app.currentItemOpacity,roughness:0,roundness:null,strokeStyle:'solid',startArrowhead:null,endArrowhead:null,customData:{neverMapPen:true,rawPenV2:true}}])[0];
+      pen={id:event.pointerId,x,y,element,settings:selectedSettings,points:[],pressures:[]};
+      if(selectedSettings.enabled){const ns='http://www.w3.org/2000/svg',preview=document.createElementNS(ns,'svg'),group=document.createElementNS(ns,'g'),path=document.createElementNS(ns,'path');preview.classList.add('nm-pen-preview');path.setAttribute('fill',element.strokeColor);path.setAttribute('fill-rule','nonzero');group.setAttribute('opacity',String(element.opacity/100));group.appendChild(path);preview.appendChild(group);document.body.appendChild(preview);Object.assign(pen,{preview,group,path});}
+      samples(event);try{(event.target as Element).setPointerCapture(event.pointerId);}catch{}flush();
     };
     const move=(event:PointerEvent)=>{
       if(palms.has(event.pointerId)){stop(event);return;}
@@ -44,11 +58,12 @@ export function DeviceInput({api}:{api:ExcalidrawImperativeAPI|null}){
     };
     const raw=(input:Event)=>{const event=input as PointerEvent;if(!pen||pen.id!==event.pointerId)return;samples(event);if(!frame)frame=requestAnimationFrame(()=>{frame=0;flush();});};
     const blur=()=>{if(pen){flush(true);pen=null;}flushTouch();touches.clear();palms.clear();gesture=null;nativePen=null;};
+    const warn=(event:BeforeUnloadEvent)=>{if(pen){event.preventDefault();event.returnValue='';}};window.addEventListener('beforeunload',warn);
     document.addEventListener('pointerdown',down,{capture:true,passive:false});document.addEventListener('pointermove',move,{capture:true,passive:false});document.addEventListener('pointerup',up,{capture:true,passive:false});document.addEventListener('pointercancel',up,{capture:true,passive:false});window.addEventListener('blur',blur);
     // Timestamp filtering avoids replaying old coalesced samples from the
     // overlapping raw-update and pointer-move streams.
     const hasRaw='onpointerrawupdate' in window;if(hasRaw)document.addEventListener('pointerrawupdate',raw,true);
-    return()=>{if(frame)cancelAnimationFrame(frame);if(touchFrame)cancelAnimationFrame(touchFrame);document.removeEventListener('pointerdown',down,true);document.removeEventListener('pointermove',move,true);document.removeEventListener('pointerup',up,true);document.removeEventListener('pointercancel',up,true);if(hasRaw)document.removeEventListener('pointerrawupdate',raw,true);window.removeEventListener('blur',blur);};
+    return()=>{if(pen){flush(true);pen=null;}if(frame)cancelAnimationFrame(frame);if(touchFrame)cancelAnimationFrame(touchFrame);document.removeEventListener('pointerdown',down,true);document.removeEventListener('pointermove',move,true);document.removeEventListener('pointerup',up,true);document.removeEventListener('pointercancel',up,true);if(hasRaw)document.removeEventListener('pointerrawupdate',raw,true);window.removeEventListener('blur',blur);window.removeEventListener('beforeunload',warn);};
   },[api]);
-  return null;
+  return <PenSettings api={api} settings={settings} onChange={changeSettings}/>;
 }

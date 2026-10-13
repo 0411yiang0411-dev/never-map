@@ -151,6 +151,16 @@ These remain editable/exportable elements using existing cloud sync. Browsers
 without raw-update events fall back to coalesced pointer moves. Hardware latency
 and actual iPad/Android stylus behavior require device testing.
 
+The left pen-tool panel provides pressure on/off, maximum stroke width
+(0.5–24px), sensitivity and minimum-width ratio. Settings persist in this
+browser and are captured at pen-down, affecting new strokes only. Pressure
+uses device-reported values. Each segment outline is independently fixed when
+sampled; subsequent samples do not smooth or reshape preceding segments.
+Pressure strokes preview locally during contact and commit one SVG-backed
+canvas element at pen-up, retaining source samples/settings in customData.
+Cloud synchronization then uses the existing private image path and guards.
+Pressure-off strokes continue to use unsmoothed native polylines.
+
 ## Automatic alignment
 
 Automatic object alignment defaults to on. The toolbar `自动对齐` toggle and

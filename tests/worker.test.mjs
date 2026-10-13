@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { DatabaseSync } from 'node:sqlite';
 import { readFileSync } from 'node:fs';
 import worker from '../.tmp/worker-build/index.js';
+import {pressureGeometry,pressureSVG} from '../src/pen-pressure.mjs';
 
 let sql, env, writes, reads;
 const token = 'test-only-access';
@@ -111,6 +112,16 @@ test('persistent sharing authorizes the same canvas without exposing its passwor
   env.ACCESS_TOKEN = 'changed-test-only-password';
   assert.equal((await call('scene')).status, 401);
   assert.equal((await call('scene', 'GET', undefined, headers)).status, 200);
+});
+test('pressure stroke exact SVG bytes and settings survive storage and shared reload',async()=>{
+  env.SHARE_TOKEN='test-only-pressure-share';const settings={enabled:true,width:6,sensitivity:1.2,minimum:.15},points=[[0,0],[20,0],[20,20]],pressures=[.2,.5,.9];
+  const data=new TextEncoder().encode(pressureSVG(pressureGeometry(points,pressures,settings),'#123456')),key=Buffer.from(await crypto.subtle.digest('SHA-256',data)).toString('hex');let stored;
+  env.IMAGES.put=async(_key,bytes)=>{stored=bytes;};env.IMAGES.get=async()=>({body:stored,writeHttpMetadata:headers=>headers.set('Content-Type','image/svg+xml')});
+  assert.equal((await call(`files/${key}`,'PUT',data,{'Content-Type':'image/svg+xml'})).status,200);
+  const scene={elements:[{id:'pressure',type:'image',fileId:'pressure-file',customData:{pressurePenV1:{settings,points,pressures}}}],files:{'pressure-file':{key,mimeType:'image/svg+xml'}},appState:{}};
+  assert.equal((await call('scene','PUT',JSON.stringify({revision:0,scene}),{'Content-Type':'application/json'})).status,200);
+  const loaded=await(await call('scene','GET',undefined,{Authorization:'Bearer test-only-pressure-share'})).json();assert.deepEqual(loaded.scene,scene);
+  assert.deepEqual(new Uint8Array(await(await call(`files/${key}`)).arrayBuffer()),data);
 });
 test('sharing preserves quota stops and rejects unrecognized links', async () => {
   env.SHARE_TOKEN = 'test-only-share-token';

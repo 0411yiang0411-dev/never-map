@@ -13,7 +13,7 @@ Date: 2026-10-10 (Asia/Shanghai)
   subscription has $0 base and usage charges beyond free allowances.
 - Live website: https://never-map.never-map-0411yiang0411.workers.dev
 - D1: never-map-db; R2: never-map-images, Standard storage, private.
-- Production version: c87b01ba-fb51-4d7f-ae6b-5ba89f3ac896.
+- Production version: ff2462e6-92ab-46c1-878b-dcedd2d4778e.
 - Usage policy: 90% warning, 99% cloud stop; verification hourly, expires
   after two hours; unknown/month rollover fails closed. Counters never lower.
 - Codex hourly heartbeat `never-map` created ACTIVE for warning/pause/recovery
@@ -120,3 +120,18 @@ Cloudflare Worker secrets. Keep secrets out of Git and R2 private.
   strokes are unchanged. Fifty tests, build and Worker dry-run pass. Actual
   tablet/stylus feel remains unverified without hardware interaction.
   Production pen/raw-sampling assets and healthy quota verified over HTTPS.
+- 2026-10-13: pressure-enabled pen input and a left pen-tool parameter panel
+  added. Controls: pressure on/off, maximum width 0.5–24px, sensitivity and
+  minimum-width ratio. Settings persist locally and are captured per stroke.
+  Independent pressure-width segment outlines preserve prior geometry and
+  sharp corners. Pressure contact uses a local SVG preview; pen-up commits a
+  single SVG-backed image with original points/pressures/settings for private
+  storage and export. Pressure-off remains an unsmoothed native polyline.
+  Stationary pressure cannot alter an existing sample. Canvas switching and
+  background downloads are guarded during preview. Fifty-five tests, build
+  and Worker dry-run pass, including exact SVG storage/shared reload. Existing
+  drawings remain unchanged; physical stylus pressure has not been tested.
+  Deployed pressure controls and healthy quota passed HTTPS checks. A small
+  pressure SVG fixture uploaded and reloaded byte-for-byte through private
+  R2, without modifying any user canvas. Evidence:
+  `.cache/pressure-live-verification.json`.

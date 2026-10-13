@@ -13,7 +13,7 @@ export function useRawPen(tool,button){return tool==='freedraw'&&button===0;}
 export function appendPenSamples(stroke,samples,view,ending=false){
   for(const sample of samples){const x=(sample.clientX-view.offsetLeft)/view.zoom-view.scrollX-stroke.x,y=(sample.clientY-view.offsetTop)/view.zoom-view.scrollY-stroke.y;
     if(Number.isFinite(sample.timeStamp)){if(sample.timeStamp<(stroke.lastTimeStamp??-Infinity))continue;stroke.lastTimeStamp=sample.timeStamp;}
-    const pressure=ending&&sample.pressure===0?(stroke.pressures.at(-1)||.5):Math.max(.15,Math.min(1,sample.pressure||.5));const last=stroke.points.at(-1);
-    if(last&&last[0]===x&&last[1]===y){stroke.pressures[stroke.pressures.length-1]=pressure;continue;}stroke.points.push([x,y]);stroke.pressures.push(pressure);
+    const pressure=ending&&sample.pressure===0?(stroke.pressures.at(-1)||.5):Math.max(.01,Math.min(1,sample.pressure||.01));const last=stroke.points.at(-1);
+    if(last&&last[0]===x&&last[1]===y)continue;stroke.points.push([x,y]);stroke.pressures.push(pressure);
   }
 }

@@ -28,3 +28,6 @@ test('pen keeps down point, every coalesced sample and actual up endpoint withou
   appendPenSamples(stroke,[{clientX:110,clientY:110,pressure:0}],view,true);
   assert.deepEqual(stroke.points,[[0,0],[1,1],[2,2],[5,5]]);assert.deepEqual(stroke.pressures,[.2,.3,.4,.4]);
 });
+test('stationary pressure changes do not revise a previously drawn sample',()=>{
+  const stroke={x:30,y:10,points:[],pressures:[]};appendPenSamples(stroke,[{clientX:100,clientY:100,pressure:.2}],view);appendPenSamples(stroke,[{clientX:100,clientY:100,pressure:1}],view);assert.deepEqual(stroke.pressures,[.2]);assert.equal(stroke.points.length,1);
+});
