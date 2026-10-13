@@ -122,6 +122,9 @@ test('pressure stroke exact SVG bytes and settings survive storage and shared re
   assert.equal((await call('scene','PUT',JSON.stringify({revision:0,scene}),{'Content-Type':'application/json'})).status,200);
   const loaded=await(await call('scene','GET',undefined,{Authorization:'Bearer test-only-pressure-share'})).json();assert.deepEqual(loaded.scene,scene);
   assert.deepEqual(new Uint8Array(await(await call(`files/${key}`)).arrayBuffer()),data);
+  const native={elements:[{id:'native-pen',type:'freedraw',points,pressures,strokeWidth:6,customData:{neverMapPen:true,pressurePenV2:{settings}}}],files:{},appState:{}};
+  assert.equal((await call('scene','PUT',JSON.stringify({revision:1,scene:native}),{'Content-Type':'application/json'})).status,200);
+  assert.deepEqual((await(await call('scene','GET',undefined,{Authorization:'Bearer test-only-pressure-share'})).json()).scene,native);
 });
 test('sharing preserves quota stops and rejects unrecognized links', async () => {
   env.SHARE_TOKEN = 'test-only-share-token';

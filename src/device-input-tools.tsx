@@ -2,7 +2,7 @@ import {useEffect,useRef,useState} from 'react';
 import {CaptureUpdateAction,convertToExcalidrawElements,newElementWith} from '@excalidraw/excalidraw';
 import type {ExcalidrawImperativeAPI} from '@excalidraw/excalidraw/types';
 import {appendPenSamples,createTouchGesture,updateTouchGesture,useRawPen} from './device-input.mjs';
-import {penSettings,pressureGeometry,pressureSVG} from './pen-pressure.mjs';
+import {penSettings,pressureGeometry} from './pen-pressure.mjs';
 import {PenSettings} from './pen-settings';
 
 export function DeviceInput({api}:{api:ExcalidrawImperativeAPI|null}){
@@ -20,10 +20,9 @@ export function DeviceInput({api}:{api:ExcalidrawImperativeAPI|null}){
     const resetGesture=()=>{gesture=touches.size?createTouchGesture([...touches.values()],view()):null;};
     const flush=(finished=false)=>{if(!pen)return;if(frame){cancelAnimationFrame(frame);frame=0;}const stroke=pen,points=stroke.points.map((p:number[])=>[...p]);if(points.length===1)points.push([points[0][0]+.001,points[0][1]+.001]);
       if(stroke.settings.enabled){const geometry=pressureGeometry(stroke.points,stroke.pressures,stroke.settings);if(!finished){const app=api.getAppState();stroke.preview.setAttribute('viewBox',`0 0 ${window.innerWidth} ${window.innerHeight}`);stroke.group.setAttribute('transform',`translate(${app.offsetLeft+(stroke.x+app.scrollX)*app.zoom.value} ${app.offsetTop+(stroke.y+app.scrollY)*app.zoom.value}) scale(${app.zoom.value})`);stroke.path.setAttribute('d',geometry.path);return;}
-        const svg=pressureSVG(geometry,stroke.element.strokeColor,stroke.element.opacity),fileId=stroke.element.id+'-pressure',dataURL='data:image/svg+xml;base64,'+btoa(svg);
-        api.addFiles([{id:fileId as any,mimeType:'image/svg+xml',dataURL:dataURL as any,created:Date.now()}]);
-        const [image]=convertToExcalidrawElements([{type:'image',x:stroke.x+geometry.x,y:stroke.y+geometry.y,width:geometry.width,height:geometry.height,fileId:fileId as any,status:'saved',scale:[1,1],customData:{neverMapPen:true,pressurePenV1:{settings:stroke.settings,points:stroke.points,pressures:stroke.pressures}}} as any]);
-        api.updateScene({elements:[...api.getSceneElements(),image],captureUpdate:CaptureUpdateAction.IMMEDIATELY});stroke.preview.remove();return;
+        const xs=stroke.points.map((p:number[])=>p[0]),ys=stroke.points.map((p:number[])=>p[1]);
+        const native={...stroke.element,type:'freedraw',points:stroke.points.map((p:number[])=>[...p]),pressures:[...stroke.pressures],simulatePressure:false,lastCommittedPoint:stroke.points[stroke.points.length-1],width:Math.max(...xs)-Math.min(...xs),height:Math.max(...ys)-Math.min(...ys),customData:{neverMapPen:true,pressurePenV2:{settings:stroke.settings}}};
+        api.updateScene({elements:[...api.getSceneElements(),native as any],captureUpdate:CaptureUpdateAction.IMMEDIATELY});requestAnimationFrame(()=>requestAnimationFrame(()=>stroke.preview.remove()));return;
       }
       const xs=points.map((p:number[])=>p[0]),ys=points.map((p:number[])=>p[1]);
       const updated=newElementWith(stroke.element,{points,width:Math.max(...xs)-Math.min(...xs),height:Math.max(...ys)-Math.min(...ys),lastCommittedPoint:points[points.length-1]} as any);stroke.element=updated;

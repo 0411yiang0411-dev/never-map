@@ -5,7 +5,7 @@ import './pen-settings.css';
 
 export function PenSettings({api,settings,onChange}:{api:ExcalidrawImperativeAPI|null;settings:any;onChange:(value:any)=>void}){
   const [target,setTarget]=useState<Element|null>(null),[active,setActive]=useState(false);
-  useEffect(()=>{if(!api)return;const find=()=>{setActive(api.getAppState().activeTool.type==='freedraw');setTarget(previous=>{const next=document.querySelector('.excalidraw .selected-shape-actions .panelColumn');return next===previous?previous:next;});};find();const unsubscribe=api.onChange(find),observer=new MutationObserver(find);observer.observe(document.body,{childList:true,subtree:true});return()=>{unsubscribe();observer.disconnect();};},[api]);
+  useEffect(()=>{if(!api)return;let tool='';const find=()=>{tool=api.getAppState().activeTool.type;setActive(tool==='freedraw');setTarget(previous=>{const next=document.querySelector('.excalidraw .selected-shape-actions .panelColumn');return next===previous?previous:next;});};find();const unsubscribe=api.onChange((_elements,app)=>{if(app.activeTool.type!==tool)find();}),observer=new MutationObserver(find);observer.observe(document.body,{childList:true,subtree:true});return()=>{unsubscribe();observer.disconnect();};},[api]);
   if(!api||!active||!target)return null;
   const change=(patch:any)=>onChange({...settings,...patch});
   return createPortal(<section className={`nm-pen-settings ${api.getAppState().theme==='dark'?'dark':''}`} aria-label="触控笔压感设置"><h3>触控笔</h3>

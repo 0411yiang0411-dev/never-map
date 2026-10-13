@@ -13,7 +13,7 @@ Date: 2026-10-10 (Asia/Shanghai)
   subscription has $0 base and usage charges beyond free allowances.
 - Live website: https://never-map.never-map-0411yiang0411.workers.dev
 - D1: never-map-db; R2: never-map-images, Standard storage, private.
-- Production version: ff2462e6-92ab-46c1-878b-dcedd2d4778e.
+- Production version: d880a09a-180b-4705-a875-927fd2f38e2f.
 - Usage policy: 90% warning, 99% cloud stop; verification hourly, expires
   after two hours; unknown/month rollover fails closed. Counters never lower.
 - Codex hourly heartbeat `never-map` created ACTIVE for warning/pause/recovery
@@ -135,3 +135,17 @@ Cloudflare Worker secrets. Keep secrets out of Git and R2 private.
   pressure SVG fixture uploaded and reloaded byte-for-byte through private
   R2, without modifying any user canvas. Evidence:
   `.cache/pressure-live-verification.json`.
+- 2026-10-13: handwriting-only eraser intercepts eraser gestures before native
+  deletion, using swept actual-path hits and preserving locked/non-handwritten
+  elements. New pressure strokes are native freedraw with a stable renderer
+  instead of SVG images, removing image-placeholder decoding on pen-up. Old
+  SVG strokes/files remain preserved. Renderer patch is pinned and checked for
+  exactly one production target; original unmarked strokes use native rendering.
+  Viewport notifications skip fingerprint allocation/selection scans and drag
+  sidebar updates are coalesced to 120ms. Local wrapper benchmark for 10,000
+  elements and 1,000 notifications: 721.03ms before vs 10.24ms after; not device
+  FPS. Upstream GitHub findings and limits are in `docs/performance-notes.md`.
+  Sixty tests, build and Worker dry-run pass. Tablet UI/physical stylus behavior
+  have not been verified on this Windows host.
+  Deployed native pressure-renderer/eraser assets and healthy quota passed
+  HTTPS checks; cloud serialization/reload tests cover native pressure data.

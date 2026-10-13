@@ -156,10 +156,21 @@ The left pen-tool panel provides pressure on/off, maximum stroke width
 browser and are captured at pen-down, affecting new strokes only. Pressure
 uses device-reported values. Each segment outline is independently fixed when
 sampled; subsequent samples do not smooth or reshape preceding segments.
-Pressure strokes preview locally during contact and commit one SVG-backed
-canvas element at pen-up, retaining source samples/settings in customData.
-Cloud synchronization then uses the existing private image path and guards.
+Pressure strokes preview locally during contact and commit one native freedraw
+element at pen-up, retaining source pressures/settings. A narrowly scoped,
+version-checked build patch routes only marked pen elements through the stable
+pressure-outline renderer for canvas/PNG/SVG export. This avoids async image
+decoding and its placeholder icon. Old SVG-backed strokes remain preserved.
+Cloud synchronization stores native strokes without an R2 image upload.
 Pressure-off strokes continue to use unsmoothed native polylines.
+
+The eraser affects handwritten elements only: native freedraw and marked pen
+strokes, including older pressure images. Tables, typed text, normal pictures
+and shapes remain protected. Erasing removes touched strokes as whole elements;
+it tests actual stroke paths rather than the blank area of their bounds.
+Viewport-only notifications skip signature allocation and sidebar scanning;
+drag/resize sidebar updates are coalesced to 120ms with a final immediate update.
+See `docs/performance-notes.md` for upstream research and measured scope.
 
 ## Automatic alignment
 

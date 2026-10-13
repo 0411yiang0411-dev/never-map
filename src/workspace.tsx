@@ -5,6 +5,8 @@ import {RichNotes} from './rich-notes';
 import {TableTools,handleTablePaste} from './table-tools';
 import {AutoAlign} from './auto-align-tools';
 import {DeviceInput} from './device-input-tools';
+import {HandwritingEraser} from './handwriting-eraser-tools';
+import {createSceneGate} from './scene-gate.mjs';
 import './workspace.css';
 
 type Drawing={elements:any[];appState:any;files:BinaryFiles};
@@ -137,6 +139,8 @@ const Board=forwardRef<BoardHandle,{id:string;name:string;connected:boolean;lock
   const fileKeys=useRef<Record<string,string>>({});
   const known=useRef(new Map<string,{key:string;dataURL:string}>());
   const savedSignature=useRef('');
+  const sceneGate=useRef(createSceneGate()),selectionKey=useRef('');
+  const selectionDirty=useRef(false),selectionTimer=useRef<ReturnType<typeof setTimeout>|null>(null);
   const timer=useRef<ReturnType<typeof setTimeout>|null>(null),localTimer=useRef<ReturnType<typeof setTimeout>|null>(null);
   const flight=useRef<Promise<boolean>|null>(null);
   const path=`canvases/${encodeURIComponent(id)}/scene`,slot=`canvas:${id}`;
@@ -144,6 +148,7 @@ const Board=forwardRef<BoardHandle,{id:string;name:string;connected:boolean;lock
   async function persist(){await writeCache(slot,{drawing:latest.current,revision:revision.current,pending:pending.current,fileKeys:fileKeys.current} satisfies Cache);}
   function show(drawing:Drawing) {
     latest.current=drawing;savedSignature.current=signature(drawing);
+    sceneGate.current.reset(drawing.elements,drawing.appState.viewBackgroundColor);
     if(api.current) {api.current.addFiles(Object.values(drawing.files));api.current.updateScene({elements:drawing.elements,appState:drawing.appState,captureUpdate:CaptureUpdateAction.NEVER});}
     else setInitial(drawing);
   }
@@ -237,15 +242,25 @@ const Board=forwardRef<BoardHandle,{id:string;name:string;connected:boolean;lock
   },[]);
   async function exportDrawing(){if(!api.current)return;download(new Blob([serializeAsJSON(api.current.getSceneElements(),api.current.getAppState(),api.current.getFiles(),'local')],{type:'application/json'}),`${name}.excalidraw`);}
   async function exportPNG(){if(!api.current)return;try{download(await exportToBlob({elements:api.current.getSceneElements(),appState:api.current.getAppState(),files:api.current.getFiles()}),`${name}.png`);}catch{status('PNG 导出失败，请导出画布文件');}}
+  function refreshSelection(elements:readonly any[],appState:any){
+    selectionDirty.current=false;
+    const picked=elements.find(e=>!e.isDeleted && (appState.selectedElementIds[e.id] || appState.editingTextElement?.id===e.id) && (e.type==='text' || e.customData?.richNote)) || elements.find(e=>e.type==='text' && !e.isDeleted && e.containerId && appState.selectedElementIds[e.containerId]);
+    setSelection(previous=>picked?previous&&previous.id===picked.id&&previous.version===picked.version?previous:{id:picked.id,version:picked.version}:previous?null:previous);
+    const table=elements.find(e=>!e.isDeleted&&appState.selectedElementIds[e.id]&&e.customData?.richTable);
+    setTableSelection(previous=>table?previous&&previous.id===table.id&&previous.version===table.version?previous:{id:table.id,version:table.version}:previous?null:previous);
+  }
+  useEffect(()=>()=>{if(selectionTimer.current)clearTimeout(selectionTimer.current);},[]);
   return <>
     <DeviceInput api={apiReady}/>
+    <HandwritingEraser api={apiReady}/>
     <div className="board-toolbar"><RichNotes api={apiReady} selection={selection} onStatus={status}/><TableTools api={apiReady} selection={tableSelection} onStatus={status}/><AutoAlign api={apiReady} enabled={alignEnabled} onToggle={()=>setAlignEnabled(previous=>{const next=!previous;localStorage.setItem('never-map-auto-align',next?'on':'off');return next;})}/><button onClick={exportDrawing}>导出备份</button><button onClick={exportPNG}>导出 PNG</button><span>{name}{loading?' · 正在读取…':''}</span></div>
     <section className="canvas" data-loading={loading || locked}>{initial && <Excalidraw initialData={initial} langCode="zh-CN" objectsSnapModeEnabled={alignEnabled} gridModeEnabled={alignEnabled?false:undefined} onPaste={(data,event)=>handleTablePaste(api.current,event,data.text || '',status)} excalidrawAPI={value=>{api.current=value;setApiReady(value);}} onChange={(elements,appState,files)=>{
-      const picked=elements.find(e=>!e.isDeleted && (appState.selectedElementIds[e.id] || appState.editingTextElement?.id===e.id) && (e.type==='text' || e.customData?.richNote)) || elements.find(e=>e.type==='text' && !e.isDeleted && e.containerId && appState.selectedElementIds[e.containerId]);
-      setSelection(previous=>picked?previous?.id===picked.id&&previous.version===picked.version?previous:{id:picked.id,version:picked.version}:previous?null:previous);
-      const table=elements.find(e=>!e.isDeleted&&appState.selectedElementIds[e.id]&&e.customData?.richTable);
-      setTableSelection(previous=>table?previous?.id===table.id&&previous.version===table.version?previous:{id:table.id,version:table.version}:previous?null:previous);
-      if(loadingRef.current)return;
+      const contentChanged=sceneGate.current.changed(elements,appState.viewBackgroundColor),key=Object.keys(appState.selectedElementIds).join('|')+'|'+(appState.editingTextElement?.id||'');
+      if(contentChanged||key!==selectionKey.current||selectionDirty.current){selectionKey.current=key;
+        if(appState.selectedElementsAreBeingDragged||appState.resizingElement){selectionDirty.current=true;if(!selectionTimer.current)selectionTimer.current=setTimeout(()=>{selectionTimer.current=null;if(api.current&&mounted.current)refreshSelection(api.current.getSceneElements(),api.current.getAppState());},120);}
+        else{if(selectionTimer.current){clearTimeout(selectionTimer.current);selectionTimer.current=null;}refreshSelection(elements,appState);}
+      }
+      if(loadingRef.current||!contentChanged)return;
       const drawing={elements:[...elements],appState:{viewBackgroundColor:appState.viewBackgroundColor,theme:appState.theme},files};
       const sig=signature(drawing);if(sig===savedSignature.current)return;savedSignature.current=sig;latest.current=drawing;pending.current=true;
       status(active.current?'有修改 · 约 5 秒后自动上传':'本机内容已修改 · 云端未同步');

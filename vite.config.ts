@@ -1,3 +1,4 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
-export default defineConfig({ plugins: [react()], cacheDir: '.cache/vite' });
+import {stablePenRenderer} from './scripts/stable-pen-renderer.mjs';
+export default defineConfig({ plugins: [stablePenRenderer() as any,react()], cacheDir: '.cache/vite' });

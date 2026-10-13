@@ -17,6 +17,7 @@ assert 'neverMapPen' in bundle and 'getCoalescedEvents' in bundle and 'touch-act
 assert 'rawPenV2' in bundle and 'pointerrawupdate' in bundle
 assert '启用压感' in bundle and '压感灵敏度' in bundle and '最细比例' in bundle and 'pressurePenV1' in bundle
 assert '.nm-pen-settings' in css and '.nm-pen-preview' in css
+assert 'pressurePenV2' in bundle and 'selectedElementsAreBeingDragged' in bundle
 status=json.loads(get('/api/status'));assert not status['paused']
 (root/'.cache/table-verification.json').write_text(json.dumps({'published_table_controls':True,'structured_model':True,'quota_healthy':True,'browser_paste_visual_verification':False},indent=2),encoding='utf8')
 print('PASS: live inline table/sidebar/resize assets, structured table metadata and quota status; browser interaction not visually verified')
