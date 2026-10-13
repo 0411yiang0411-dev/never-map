@@ -13,7 +13,7 @@ Date: 2026-10-10 (Asia/Shanghai)
   subscription has $0 base and usage charges beyond free allowances.
 - Live website: https://never-map.never-map-0411yiang0411.workers.dev
 - D1: never-map-db; R2: never-map-images, Standard storage, private.
-- Production version: d880a09a-180b-4705-a875-927fd2f38e2f.
+- Production version: 64693bfd-65d3-4e6f-b4f7-c32c919ac998.
 - Usage policy: 90% warning, 99% cloud stop; verification hourly, expires
   after two hours; unknown/month rollover fails closed. Counters never lower.
 - Codex hourly heartbeat `never-map` created ACTIVE for warning/pause/recovery
@@ -149,3 +149,20 @@ Cloudflare Worker secrets. Keep secrets out of Git and R2 private.
   have not been verified on this Windows host.
   Deployed native pressure-renderer/eraser assets and healthy quota passed
   HTTPS checks; cloud serialization/reload tests cover native pressure data.
+- 2026-10-13: Android Redmi browser reported connection-closed -100 after the
+  latest release. Server/root/assets/quota checks passed through the host proxy;
+  direct host access timed out, so the exact tablet transport cause is unproven.
+  Two website gaps were confirmed: Vite's default Chrome111 baseline and removed
+  old entry URLs returning HTML via SPA fallback. Production now targets Chrome79
+  (CSS Chrome61), with core-js runtime API polyfills and secure UUID fallback.
+  Build retains two previous asset generations; two known previously removed
+  entry URLs serve a one-time cache-busting reload instead of HTML-as-JavaScript.
+  Initial load fallback, React error boundary and credential-free lightweight
+  `/connection-check.html` added. Local/IndexedDB state is not cleared; shared
+  fragments persist. Core-js postinstall is intentionally disabled and tool
+  cache/store settings remain in the project. Worker/database functionality and
+  current feature set remain unchanged. Sixty-two tests and build pass.
+  Android-UA HTTP checks passed for homepage, current main JS, previous main JS
+  with correct MIME, stale-entry recovery and lightweight check page. Proof:
+  `.cache/android-loading-verification.json`. Redmi physical access and the
+  reported -100 error remain unverified; do not claim that transport issue fixed.

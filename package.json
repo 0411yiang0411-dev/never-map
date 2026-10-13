@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite --host 127.0.0.1",
-    "build": "tsc --noEmit && vite build && node scripts/copy-fonts.mjs",
+    "build": "node scripts/retain-browser-assets.mjs snapshot && tsc --noEmit && vite build && node scripts/copy-fonts.mjs && node scripts/retain-browser-assets.mjs restore",
     "test": "node --test tests/*.test.mjs",
     "deploy": "pnpm run build && wrangler deploy",
     "cf:login": "wrangler login",
@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "@excalidraw/excalidraw": "0.18.0",
+    "core-js": "^3.50.0",
     "react": "19.0.0",
     "react-dom": "19.0.0"
   },

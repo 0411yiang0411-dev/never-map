@@ -15,6 +15,14 @@ No membership, payment, multiplayer, AI or dependency on Byfloral's server.
 
 ## Build and check
 
+Production targets Chrome79 syntax and Chrome61 CSS, with local core-js runtime
+polyfills for older Android system browsers. Build output retains two previous
+asset generations to protect cached pages during deployment. Known already
+removed entry URLs perform a single cache-busting homepage reload, preserving
+URL fragments and browser drawing storage. `/connection-check.html` is a small,
+credential-free transport/loading check. This improves website compatibility
+but does not prove an individual device's connection-closed error is resolved.
+
 Use Node.js 24 and pnpm. On this Windows host run `scripts/project-env.cmd`
 first so caches and temporary downloads remain under this project.
 

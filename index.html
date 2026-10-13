@@ -1,2 +1,4 @@
 <!doctype html>
-<html lang="zh-CN"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/><meta name="robots" content="noindex,nofollow"/><title>never-map · 个人画板</title></head><body><div id="root"></div><script type="module" src="/src/main.tsx"></script></body></html>
+<html lang="zh-CN"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/><meta name="robots" content="noindex,nofollow"/><title>never-map · 个人画板</title></head><body><div id="root"><div style="padding:24px;font-family:sans-serif"><h2>never-map</h2><p id="boot-message">正在加载画布…</p><a href="/connection-check.html">加载检测</a></div></div><script>
+(function(){function fail(text){if(window.neverMapBootComplete)return;var node=document.getElementById('boot-message');if(node)node.textContent=text;}window.addEventListener('error',function(e){fail('页面加载未完成，请重新加载。现有画布数据不会被清除。');},true);window.addEventListener('unhandledrejection',function(){fail('页面初始化失败，请打开加载检测。现有画布数据仍保留。');});setTimeout(function(){fail('加载时间较长，可打开加载检测查看网页与资源连接状态。');},20000);})();
+</script><script type="module" src="/src/main.tsx"></script></body></html>
