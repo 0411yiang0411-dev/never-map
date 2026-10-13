@@ -13,6 +13,7 @@ assert 'richTable' in bundle and '.nm-table-inline' in css and '.nm-table-proper
 assert '.nm-table-col-resize' in css and '.nm-table-row-resize' in css
 assert '框选到边缘自动滚动' in bundle and '中键拖动平移' in bundle
 assert '自动对齐：' in bundle and 'never-map-auto-align' in bundle and 'objectsSnapModeEnabled' in bundle
+assert 'neverMapPen' in bundle and 'getCoalescedEvents' in bundle and 'touch-action:none' in css
 status=json.loads(get('/api/status'));assert not status['paused']
 (root/'.cache/table-verification.json').write_text(json.dumps({'published_table_controls':True,'structured_model':True,'quota_healthy':True,'browser_paste_visual_verification':False},indent=2),encoding='utf8')
 print('PASS: live inline table/sidebar/resize assets, structured table metadata and quota status; browser interaction not visually verified')

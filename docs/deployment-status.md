@@ -13,7 +13,7 @@ Date: 2026-10-10 (Asia/Shanghai)
   subscription has $0 base and usage charges beyond free allowances.
 - Live website: https://never-map.never-map-0411yiang0411.workers.dev
 - D1: never-map-db; R2: never-map-images, Standard storage, private.
-- Production version: 86dfaf7c-2654-4706-84b0-a6b38d8bc336.
+- Production version: e8ef4436-4d72-4c6e-b57c-3fa32a2a79bb.
 - Usage policy: 90% warning, 99% cloud stop; verification hourly, expires
   after two hours; unknown/month rollover fails closed. Counters never lower.
 - Codex hourly heartbeat `never-map` created ACTIVE for warning/pause/recovery
@@ -100,3 +100,12 @@ Cloudflare Worker secrets. Keep secrets out of Git and R2 private.
   Deployed alignment controls/preference assets and healthy quota verified
   over HTTPS. Actual browser dragging remains unverified due the existing
   browser-control timeout.
+- 2026-10-13: device-aware pointer routing added. Finger contact pans the
+  canvas; two contacts zoom about their midpoint while panning. Stylus contact
+  writes native freedraw strokes immediately without the engine's initial
+  drag threshold. Coalesced movement and down/up positions are retained, the
+  live tip is committed each frame, and zero lift pressure does not erase the
+  tail. Palm contacts are suppressed until lifted. Toolbar and mouse input
+  remain separate; existing cloud sync and quota guards are unchanged.
+  Forty-seven tests and production build pass. Real stylus hardware latency
+  and physical multi-touch interaction have not been tested on this host.

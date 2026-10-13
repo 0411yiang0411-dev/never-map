@@ -134,6 +134,20 @@ The existing account-level quota guards cover all canvases together. A 200
 canvas protection limit keeps this personal deployment within a modest data
 footprint. Creating a canvas does not create a paid service or a new bucket.
 
+## Touch and pen input
+
+Canvas input follows PointerEvent pointerType, including hybrid tablets and
+touch laptops. A finger pans; two fingers pinch-zoom about their midpoint and
+pan simultaneously. Mouse editing and toolbar/button taps retain their normal
+behavior. A pen touching the drawing canvas writes immediately regardless of
+the selected shape tool. Pen eraser-button input retains native handling.
+During pen contact, finger contacts are ignored until they lift, protecting
+against palm movement. Sampling includes the initial contact, coalesced moves
+and the actual up coordinate. The final pressure is retained at pen lift;
+frame-batched rendering uses a committed tip to avoid trailing-end clipping.
+Strokes remain native editable freedraw elements and use existing cloud sync.
+Hardware latency and actual iPad/Android stylus behavior require device testing.
+
 ## Automatic alignment
 
 Automatic object alignment defaults to on. The toolbar `自动对齐` toggle and
