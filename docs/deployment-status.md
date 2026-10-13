@@ -13,7 +13,7 @@ Date: 2026-10-10 (Asia/Shanghai)
   subscription has $0 base and usage charges beyond free allowances.
 - Live website: https://never-map.never-map-0411yiang0411.workers.dev
 - D1: never-map-db; R2: never-map-images, Standard storage, private.
-- Production version: e8ef4436-4d72-4c6e-b57c-3fa32a2a79bb.
+- Production version: c87b01ba-fb51-4d7f-ae6b-5ba89f3ac896.
 - Usage policy: 90% warning, 99% cloud stop; verification hourly, expires
   after two hours; unknown/month rollover fails closed. Counters never lower.
 - Codex hourly heartbeat `never-map` created ACTIVE for warning/pause/recovery
@@ -109,3 +109,14 @@ Cloudflare Worker secrets. Keep secrets out of Git and R2 private.
   remain separate; existing cloud sync and quota guards are unchanged.
   Forty-seven tests and production build pass. Real stylus hardware latency
   and physical multi-touch interaction have not been tested on this host.
+- 2026-10-13: revised tablet interaction at the user's request. One/two-finger
+  sliding pans; deliberate distance changes trigger midpoint-anchored zoom.
+  Touch updates are frame-batched with a 4px/3% initial distance threshold to
+  reject jitter. Stylus follows the active tool; only freedraw uses custom
+  sampling, while selection/shape/eraser events reach the native engine.
+  New handwritten strokes are fixed-width roughness-zero, unrounded native
+  polylines, removing the pressure/smoothing outline recomputation. Raw-update
+  events supplement coalesced samples with timestamp replay filtering. Old
+  strokes are unchanged. Fifty tests, build and Worker dry-run pass. Actual
+  tablet/stylus feel remains unverified without hardware interaction.
+  Production pen/raw-sampling assets and healthy quota verified over HTTPS.

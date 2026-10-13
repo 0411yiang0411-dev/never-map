@@ -137,16 +137,19 @@ footprint. Creating a canvas does not create a paid service or a new bucket.
 ## Touch and pen input
 
 Canvas input follows PointerEvent pointerType, including hybrid tablets and
-touch laptops. A finger pans; two fingers pinch-zoom about their midpoint and
-pan simultaneously. Mouse editing and toolbar/button taps retain their normal
-behavior. A pen touching the drawing canvas writes immediately regardless of
-the selected shape tool. Pen eraser-button input retains native handling.
-During pen contact, finger contacts are ignored until they lift, protecting
-against palm movement. Sampling includes the initial contact, coalesced moves
-and the actual up coordinate. The final pressure is retained at pen lift;
-frame-batched rendering uses a committed tip to avoid trailing-end clipping.
-Strokes remain native editable freedraw elements and use existing cloud sync.
-Hardware latency and actual iPad/Android stylus behavior require device testing.
+touch laptops. One or two fingers slide to pan. Two-finger distance changes
+above a small jitter threshold pinch-zoom about the midpoint. Touch movement
+is frame-batched so two parallel finger moves do not briefly fight each other.
+Mouse editing and toolbar/button taps retain normal behavior. A pen follows
+the selected tool: selection selects, the pen tool writes, and eraser erases.
+Only the pen tool uses enhanced raw/coalesced sampling. Existing finger contacts
+are ignored during stylus contact until lifted to protect against palm movement.
+New pen strokes use fixed-width unsmoothed native polylines, retaining every
+sampled corner without pressure-driven outline changes. Appending points does
+not move preceding vertices. Older strokes are preserved as originally stored.
+These remain editable/exportable elements using existing cloud sync. Browsers
+without raw-update events fall back to coalesced pointer moves. Hardware latency
+and actual iPad/Android stylus behavior require device testing.
 
 ## Automatic alignment
 
