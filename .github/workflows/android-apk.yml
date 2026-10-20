@@ -52,7 +52,7 @@ jobs:
           cp android/app/build/outputs/apk/release/app-release.apk output/android/never-map.apk
           "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose --print-certs output/android/never-map.apk > output/android/apk-verification.txt
           "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging output/android/never-map.apk >> output/android/apk-verification.txt
-          cat android/app/build/reports/lint-results-release.txt
+          cat android/app/build/intermediates/lint_intermediate_text_report/release/lintReportRelease/lint-results-release.txt
           cd output/android
           sha256sum never-map.apk > SHA256SUMS.txt
       - uses: actions/upload-artifact@v4
