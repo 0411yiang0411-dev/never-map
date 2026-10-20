@@ -1,0 +1,34 @@
+plugins { id 'com.android.application' }
+android {
+    namespace 'com.nevermap.app'
+    compileSdk 35
+    defaultConfig {
+        applicationId 'com.nevermap.app'
+        minSdk 26
+        targetSdk 35
+        versionCode Integer.parseInt(System.getenv('ANDROID_VERSION_CODE') ?: '1')
+        versionName '1.0.' + (System.getenv('ANDROID_VERSION_CODE') ?: '1')
+        testInstrumentationRunner 'androidx.test.runner.AndroidJUnitRunner'
+    }
+    signingConfigs {
+        release {
+            if (System.getenv('NEVER_MAP_KEYSTORE_PATH')) {
+                storeFile file(System.getenv('NEVER_MAP_KEYSTORE_PATH'))
+                storeType 'PKCS12'
+                storePassword System.getenv('NEVER_MAP_STORE_PASSWORD')
+                keyAlias 'never-map'
+                keyPassword System.getenv('NEVER_MAP_STORE_PASSWORD')
+            }
+        }
+    }
+    buildTypes {
+        release { minifyEnabled false; signingConfig signingConfigs.release }
+    }
+    compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17 }
+    buildFeatures { buildConfig true }
+    lint { abortOnError true; checkReleaseBuilds true }
+}
+dependencies {
+    implementation 'androidx.webkit:webkit:1.14.0'
+    testImplementation 'junit:junit:4.13.2'
+}

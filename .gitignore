@@ -6,3 +6,10 @@ dist/
 .env*
 !.env.example
 *.local
+android/.gradle/
+android/**/build/
+android/local.properties
+*.jks
+*.keystore
+*.p12
+output/android/*.apk
