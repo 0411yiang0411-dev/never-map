@@ -77,7 +77,7 @@ public class MainActivity extends Activity {
         bar.setGravity(Gravity.CENTER_VERTICAL);
         Button back = new Button(this); back.setText("‹"); back.setContentDescription("返回");
         back.setOnClickListener(v -> onBackPressed()); bar.addView(back,new LinearLayout.LayoutParams(dp(48),dp(44)));
-        TextView brand = new TextView(this); brand.setText("never-map"); brand.setTextSize(18); brand.setTextColor(Color.rgb(35,32,49)); brand.setTypeface(null,1);
+        TextView brand = new TextView(this); brand.setText("never-map"); brand.setTextSize(18); brand.setTextColor(Color.rgb(35,32,49)); brand.setTypeface(null,android.graphics.Typeface.BOLD);
         bar.addView(brand,new LinearLayout.LayoutParams(0,dp(44),1)); brand.setGravity(Gravity.CENTER_VERTICAL);
         Button menu = new Button(this); menu.setText("⋮"); menu.setContentDescription("应用菜单"); menu.setOnClickListener(v -> showMenu(menu));
         bar.addView(menu,new LinearLayout.LayoutParams(dp(48),dp(44))); root.addView(bar);
