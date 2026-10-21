@@ -3,9 +3,9 @@ on:
   workflow_dispatch:
   push:
     branches: [main]
-    paths: ['android/**', '.github/workflows/android-apk.yml']
+    paths: ['android/**', '.github/workflows/android-apk.yml', 'scripts/publish-android-release.py']
 permissions:
-  contents: read
+  contents: write
 concurrency:
   group: android-apk
   cancel-in-progress: false
@@ -55,12 +55,19 @@ jobs:
           cat android/app/build/intermediates/lint_intermediate_text_report/release/lintReportRelease/lint-results-release.txt
           cd output/android
           sha256sum never-map.apk > SHA256SUMS.txt
+      - name: Prepare update manifest
+        run: python3 scripts/publish-android-release.py --prepare-only
       - uses: actions/upload-artifact@v4
         with:
           name: never-map-android
           path: output/android/
           retention-days: 7
           if-no-files-found: error
+      - name: Publish verified APK and update channel
+        if: github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 scripts/publish-android-release.py
       - name: Remove temporary signing material
         if: always()
         run: rm -f .tmp/android-signing/never-map.p12

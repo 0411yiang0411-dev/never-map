@@ -10,11 +10,19 @@
 
 顶部菜单提供刷新、连接检测、浏览器打开和 GitHub 源码入口。系统 WebView 与红米浏览器不同，但客户端不能保证解决设备网络的连接关闭问题。尚需真实 Pad 安装验证触控笔、手势、文件保存及连接状况。
 
+## 应用内更新
+
+菜单 ⋮ → 检查更新；启动时最多每天自动检查一次，检查失败不打断画布。发现新版后选择下载，显示进度并允许取消。下载完成核对大小、SHA-256、包名、版本号和现有签名后，点击继续安装，进入安卓系统覆盖安装界面。首次需要在系统设置中允许 never-map 安装应用；之后无需再去 GitHub 下载。旧版尚无更新器，需要手动覆盖安装含此功能的版本一次。不要卸载旧版。
+
+安装会重启应用，请先完成文字/表格编辑并保存或导出。升级保留应用目录、WebView 缓存和登录数据；本机尚未持久保存的编辑仍需先保存。稍后安装的文件在本次进程内可通过再次检查更新取回安装入口；应用进程被关闭后可重新检查并下载。
+
+更新源固定为本仓库 GitHub Releases 的 `releases/latest/download/update.json`，只允许本仓库 APK 地址及 GitHub 的 HTTPS 资源重定向。更新请求不携带个人密码、共享链接或 GitHub 令牌。不使用 R2，不新增服务端计费资源。网络无法访问 GitHub 时会提示重试，不会绕过 TLS。
+
 ## 自动构建
 
 App 画布界面顶部使用单行操作栏，宽度不足时可左右滑动。网页就绪后收起原生标题栏，应用菜单移到该行末尾的 ⋮ 按钮；连接错误或检测页面仍保留原生导航，避免无法返回。
 
-修改 `android/` 并推送 main，或手动运行 GitHub Actions 的 **Build Android APK**。工作流使用 JDK 17、Gradle 8.11.1、Android SDK 35，执行 Release 单元测试、Lint、APK 构建及签名验证。成功结果位于 `never-map-android` artifact，保留 7 天；正式可下载版本另存 Releases。
+修改 `android/` 并推送 main，或手动运行 GitHub Actions 的 **Build Android APK**。工作流使用 JDK 17、Gradle 8.11.1、Android SDK 35，执行 Release 单元测试、Lint、APK 构建及签名验证。成功结果位于 `never-map-android` artifact，保留 7 天。main 的成功构建自动创建草稿 Release，上传全部签名包及校验信息后才发布并切换更新通道；失败构建不发布，旧版本不覆盖。`android/release-notes.txt` 为本次更新说明。发布使用 Actions 的临时仓库写入令牌，APK 中不包含此令牌。
 
 签名材料仅存 GitHub Actions 加密 Secrets：`NEVER_MAP_KEYSTORE_BASE64` 和 `NEVER_MAP_STORE_PASSWORD`。密钥别名 `never-map`，PKCS12。私有本机备份在项目 `.cache/android-signing/`，不得提交或公开；丢失签名密钥将无法覆盖升级。版本号使用工作流 run number，请始终使用同一工作流生成升级包。
 

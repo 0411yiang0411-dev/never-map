@@ -61,6 +61,7 @@ public class MainActivity extends Activity {
     private String pendingName, pendingMime;
     private boolean mainLoadFailed;
     private String bridgeScript;
+    private AppUpdater updater;
 
     private static class Transfer {
         String id, name, mime;
@@ -84,6 +85,7 @@ public class MainActivity extends Activity {
         bar.addView(menu,new LinearLayout.LayoutParams(dp(48),dp(44))); root.addView(bar);
         progress = new ProgressBar(this,null,android.R.attr.progressBarStyleHorizontal); root.addView(progress,new LinearLayout.LayoutParams(-1,dp(3)));
         content = new FrameLayout(this); root.addView(content,new LinearLayout.LayoutParams(-1,0,1)); setContentView(root);
+        updater=new AppUpdater(this);
         try (InputStream stream = getAssets().open("native-download.js"); ByteArrayOutputStream bytes = new ByteArrayOutputStream()) { byte[] buffer = new byte[8192]; int count; while ((count=stream.read(buffer))!=-1) bytes.write(buffer,0,count); bridgeScript = new String(bytes.toByteArray(),StandardCharsets.UTF_8); }
         catch (Exception ignored) { bridgeScript = ""; }
         createWebView();
@@ -174,12 +176,13 @@ public class MainActivity extends Activity {
     }
     private void reload() { if(web==null){createWebView();web.loadUrl(AppPolicy.HOME);}else web.reload(); }
     private void showMenu(View anchor) {
-        PopupMenu menu=new PopupMenu(this,anchor);String[] names={"刷新网页","连接检测","在浏览器打开","GitHub 源码","关于应用"};for(int i=0;i<names.length;i++)menu.getMenu().add(0,i,i,names[i]);
+        PopupMenu menu=new PopupMenu(this,anchor);String[] names={"刷新网页","连接检测","在浏览器打开","GitHub 源码","检查更新","关于应用"};for(int i=0;i<names.length;i++)menu.getMenu().add(0,i,i,names[i]);
         menu.setOnMenuItemClickListener(item->{switch(item.getItemId()){
             case 0:reload();break;
             case 1:if(web==null)createWebView();web.loadUrl(AppPolicy.ORIGIN+"/connection-check.html");break;
             case 2:openExternal(web!=null&&AppPolicy.isAppUrl(web.getUrl())?web.getUrl():AppPolicy.HOME);break;
             case 3:openExternal(AppPolicy.REPOSITORY);break;
+            case 4:updater.check(true);break;
             default:new AlertDialog.Builder(this).setTitle("never-map "+BuildConfig.VERSION_NAME).setMessage("现有个人画布的独立 Android 入口。\n触控笔和手势以网页工具为准；导出通过系统文件选择器保存。\n不包含密码，首次使用请登录原有个人账户。\n共享同一云端数据；本机缓存与系统浏览器独立。").setPositiveButton("确定",null).show();
         }return true;});menu.show();
     }
@@ -219,6 +222,6 @@ public class MainActivity extends Activity {
     @Override public void onBackPressed() { if(web!=null&&web.canGoBack())web.goBack();else moveTaskToBack(true); }
     @Override protected void onSaveInstanceState(Bundle state) { if(web!=null)web.saveState(state);super.onSaveInstanceState(state); }
     @Override protected void onPause() { if(web!=null)web.onPause();CookieManager.getInstance().flush();super.onPause(); }
-    @Override protected void onResume() { super.onResume();if(web!=null)web.onResume(); }
-    @Override protected void onDestroy() { if(fileCallback!=null)fileCallback.onReceiveValue(null);if(web!=null){content.removeView(web);web.destroy();}files.execute(()->{cancelTransfer();discardPending();});files.shutdown();super.onDestroy(); }
+    @Override protected void onResume() { super.onResume();if(web!=null)web.onResume();if(updater!=null)updater.onResume(); }
+    @Override protected void onDestroy() { if(updater!=null)updater.close();if(fileCallback!=null)fileCallback.onReceiveValue(null);if(web!=null){content.removeView(web);web.destroy();}files.execute(()->{cancelTransfer();discardPending();});files.shutdown();super.onDestroy(); }
 }
