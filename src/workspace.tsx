@@ -1,4 +1,5 @@
 import React,{forwardRef,useEffect,useImperativeHandle,useRef,useState} from 'react';
+import {createPortal} from 'react-dom';
 import {Excalidraw,exportToBlob,serializeAsJSON,CaptureUpdateAction} from '@excalidraw/excalidraw';
 import type {ExcalidrawImperativeAPI,BinaryFiles} from '@excalidraw/excalidraw/types';
 import {RichNotes} from './rich-notes';
@@ -15,6 +16,8 @@ type Cache={drawing:Drawing;revision:number|null;pending:boolean;fileKeys:Record
 type BoardHandle={flush:()=>Promise<boolean>;flushLocal:()=>Promise<void>;readCloud:()=>Promise<void>;overwrite:()=>Promise<void>;recover:()=>Promise<void>};
 const params=new URLSearchParams(location.hash.slice(1));
 const shareToken=params.get('share');
+const nativeBridge=(window as Window & {NeverMapAndroid?:{postMessage:(message:string)=>void}}).NeverMapAndroid;
+const androidApp=!!nativeBridge || new URLSearchParams(location.search).get('app')==='android';
 const firstId=params.get('canvas') || (shareToken?'main':localStorage.getItem('never-map-last-canvas') || 'main');
 const blank=():Drawing=>({elements:[],appState:{viewBackgroundColor:'#ffffff'},files:{}});
 const signature=(drawing:Drawing)=>drawing.elements.map(e=>`${e.id}:${e.version}:${e.isDeleted}:${e.fileId || ''}`).join('|')+drawing.appState.viewBackgroundColor;
@@ -50,8 +53,10 @@ export default function Workspace() {
   const [shareURL,setShareURL]=useState('');
   const [dialog,setDialog]=useState<'new'|'rename'|null>(null);
   const [name,setName]=useState('');
+  const [toolbarHost,setToolbarHost]=useState<HTMLDivElement|null>(null);
   const board=useRef<BoardHandle|null>(null);
   const selected=canvases.find(c=>c.id===canvasId);
+  useEffect(()=>{if(androidApp && toolbarHost)nativeBridge?.postMessage(JSON.stringify({type:'chromeReady'}));},[toolbarHost]);
 
   async function connect(value=password,boot=false) {
     setWorking(true);setProgress({value:10,label:'正在验证访问密码…'});
@@ -102,14 +107,16 @@ export default function Workspace() {
     } catch(error){setMessage((error as Error).message);} finally {setWorking(false);}
   }
   return <main>
-    <header><strong>never-map</strong><div className="canvas-management">
+    <header className={androidApp?'app-header':undefined}><div className={androidApp?'app-command-scroll':'workspace-header-content'} aria-label={androidApp?'画布操作栏，可左右滑动':undefined} tabIndex={androidApp?0:undefined}><strong>never-map</strong><div className="canvas-management">
       <select aria-label="画布列表" value={canvasId} disabled={!connected || working} onChange={e=>void switchCanvas(e.target.value)}>
         {canvases.length?canvases.map(c=><option key={c.id} value={c.id}>{c.name}</option>):<option value={canvasId}>我的画布（本地）</option>}
       </select>
       <button disabled={!connected || working} onClick={()=>{setName('');setDialog('new');}}>新建画布</button>
       <button disabled={!connected || working} onClick={()=>{setName(selected?.name || '我的画布');setDialog('rename');}}>重命名</button>
-    </div><span role="status">{message}</span><button onClick={()=>setPanel(!panel)}>云端与共享</button></header>
-    {panel && <aside><h2>个人云端画布</h2><label>个人访问密码<input type="password" value={password} onChange={e=>setPassword(e.target.value)} autoComplete="off"/></label>
+    </div>{androidApp && <div className="app-board-tools" ref={setToolbarHost}/>}
+    <span className="sync-status" role="status" title={message}>{message}</span><button onClick={()=>setPanel(!panel)}>云端与共享</button>
+    {nativeBridge && <button className="app-menu-button" aria-label="应用菜单" onClick={()=>nativeBridge.postMessage(JSON.stringify({type:'appMenu'}))}>⋮</button>}</div></header>
+    {panel && <aside><h2>个人云端画布</h2><p role="status">{message}</p><label>个人访问密码<input type="password" value={password} onChange={e=>setPassword(e.target.value)} autoComplete="off"/></label>
       <button disabled={working} onClick={()=>void connect()}>连接并检查</button>
       <button disabled={!connected || working} onClick={()=>void board.current?.readCloud()}>读取云端</button>
       <button disabled={!connected || working} onClick={()=>void board.current?.overwrite()}>以本机版本覆盖云端</button>
@@ -121,11 +128,11 @@ export default function Workspace() {
       <button onClick={()=>setPanel(false)}>关闭</button>
     </aside>}
     {dialog && <div className="canvas-name-modal"><form onSubmit={e=>{e.preventDefault();void submitName();}}><h2>{dialog==='new'?'新建画布':'重命名画布'}</h2><label>画布名称<input autoFocus maxLength={80} value={name} onChange={e=>setName(e.target.value)}/></label><div><button disabled={working || !name.trim()} type="submit">保存</button><button type="button" disabled={working} onClick={()=>setDialog(null)}>取消</button></div></form></div>}
-    {ready && <Board key={`${canvasId}:${authEpoch}`} ref={board} id={canvasId} name={selected?.name || '我的画布'} connected={connected} locked={working} onStatus={setMessage}/>}
+    {ready && <Board key={`${canvasId}:${authEpoch}`} ref={board} id={canvasId} name={selected?.name || '我的画布'} connected={connected} locked={working} toolbarHost={toolbarHost} onStatus={setMessage}/>}
   </main>;
 }
 
-const Board=forwardRef<BoardHandle,{id:string;name:string;connected:boolean;locked:boolean;onStatus:(s:string)=>void}>(function Board({id,name,connected,locked,onStatus},ref){
+const Board=forwardRef<BoardHandle,{id:string;name:string;connected:boolean;locked:boolean;toolbarHost:HTMLElement|null;onStatus:(s:string)=>void}>(function Board({id,name,connected,locked,toolbarHost,onStatus},ref){
   const [initial,setInitial]=useState<Drawing|null>(null);
   const [loading,setLoading]=useState(true);
   const [apiReady,setApiReady]=useState<ExcalidrawImperativeAPI|null>(null);
@@ -250,10 +257,11 @@ const Board=forwardRef<BoardHandle,{id:string;name:string;connected:boolean;lock
     setTableSelection(previous=>table?previous&&previous.id===table.id&&previous.version===table.version?previous:{id:table.id,version:table.version}:previous?null:previous);
   }
   useEffect(()=>()=>{if(selectionTimer.current)clearTimeout(selectionTimer.current);},[]);
+  const toolbar=<div className="board-toolbar"><RichNotes api={apiReady} selection={selection} onStatus={status}/><TableTools api={apiReady} selection={tableSelection} onStatus={status}/><AutoAlign api={apiReady} enabled={alignEnabled} onToggle={()=>setAlignEnabled(previous=>{const next=!previous;localStorage.setItem('never-map-auto-align',next?'on':'off');return next;})}/><button onClick={exportDrawing}>导出备份</button><button onClick={exportPNG}>导出 PNG</button>{!androidApp && <span>{name}{loading?' · 正在读取…':''}</span>}</div>;
   return <>
     <DeviceInput api={apiReady}/>
     <HandwritingEraser api={apiReady}/>
-    <div className="board-toolbar"><RichNotes api={apiReady} selection={selection} onStatus={status}/><TableTools api={apiReady} selection={tableSelection} onStatus={status}/><AutoAlign api={apiReady} enabled={alignEnabled} onToggle={()=>setAlignEnabled(previous=>{const next=!previous;localStorage.setItem('never-map-auto-align',next?'on':'off');return next;})}/><button onClick={exportDrawing}>导出备份</button><button onClick={exportPNG}>导出 PNG</button><span>{name}{loading?' · 正在读取…':''}</span></div>
+    {androidApp?(toolbarHost?createPortal(toolbar,toolbarHost):null):toolbar}
     <section className="canvas" data-loading={loading || locked}>{initial && <Excalidraw initialData={initial} langCode="zh-CN" objectsSnapModeEnabled={alignEnabled} gridModeEnabled={alignEnabled?false:undefined} onPaste={(data,event)=>handleTablePaste(api.current,event,data.text || '',status)} excalidrawAPI={value=>{api.current=value;setApiReady(value);}} onChange={(elements,appState,files)=>{
       const contentChanged=sceneGate.current.changed(elements,appState.viewBackgroundColor),key=Object.keys(appState.selectedElementIds).join('|')+'|'+(appState.editingTextElement?.id||'');
       if(contentChanged||key!==selectionKey.current||selectionDirty.current){selectionKey.current=key;

@@ -51,6 +51,7 @@ public class MainActivity extends Activity {
     private WebView web;
     private FrameLayout content;
     private LinearLayout errorPanel;
+    private LinearLayout nativeBar;
     private TextView errorText;
     private ProgressBar progress;
     private ValueCallback<Uri[]> fileCallback;
@@ -73,7 +74,7 @@ public class MainActivity extends Activity {
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
         root.setBackgroundColor(Color.rgb(250,249,253));
-        LinearLayout bar = new LinearLayout(this);
+        LinearLayout bar = new LinearLayout(this);nativeBar=bar;
         bar.setGravity(Gravity.CENTER_VERTICAL);
         Button back = new Button(this); back.setText("‹"); back.setContentDescription("返回");
         back.setOnClickListener(v -> onBackPressed()); bar.addView(back,new LinearLayout.LayoutParams(dp(48),dp(44)));
@@ -127,7 +128,7 @@ public class MainActivity extends Activity {
                 if (AppPolicy.isExternalHttps(url)) openExternal(url);
                 return true;
             }
-            @Override public void onPageStarted(WebView view,String url,android.graphics.Bitmap icon) { mainLoadFailed=false;errorPanel.setVisibility(View.GONE);progress.setVisibility(View.VISIBLE); }
+            @Override public void onPageStarted(WebView view,String url,android.graphics.Bitmap icon) { mainLoadFailed=false;nativeBar.setVisibility(View.VISIBLE);errorPanel.setVisibility(View.GONE);progress.setVisibility(View.VISIBLE); }
             @Override public void onPageFinished(WebView view,String url) {
                 progress.setVisibility(View.GONE);CookieManager.getInstance().flush();
                 if (AppPolicy.isAppUrl(url) && WebViewFeature.isFeatureSupported(WebViewFeature.WEB_MESSAGE_LISTENER)) view.evaluateJavascript(bridgeScript,null);
@@ -167,7 +168,7 @@ public class MainActivity extends Activity {
         errorPanel.setVisibility(View.GONE);content.addView(errorPanel,new FrameLayout.LayoutParams(-1,-1));
     }
     private void showError(String message) {
-        mainLoadFailed=true;progress.setVisibility(View.GONE);
+        mainLoadFailed=true;nativeBar.setVisibility(View.VISIBLE);progress.setVisibility(View.GONE);
         android.content.pm.PackageInfo provider=WebView.getCurrentWebViewPackage();
         errorText.setText(message+"\n\n页面连接未完成，本机画布缓存没有被清除。\nWebView："+(provider==null?"未知":provider.versionName));errorPanel.setVisibility(View.VISIBLE);
     }
@@ -188,6 +189,8 @@ public class MainActivity extends Activity {
     private void receiveExport(String body) {
         try {
             JSONObject message=new JSONObject(body);String type=message.optString("type"),id=message.optString("id");
+            if(type.equals("chromeReady")){runOnUiThread(()->{if(!mainLoadFailed)nativeBar.setVisibility(View.GONE);});return;}
+            if(type.equals("appMenu")){runOnUiThread(()->showMenu(web!=null?web:content));return;}
             if(type.equals("clipboard")){String text=message.optString("text");if(text.length()<=200000)runOnUiThread(()->{ClipboardManager clipboard=(ClipboardManager)getSystemService(CLIPBOARD_SERVICE);clipboard.setPrimaryClip(ClipData.newPlainText("never-map",text));});return;}
             if(type.equals("notice")){toast(message.optString("text","导出失败"));return;}
             if(type.equals("start")){

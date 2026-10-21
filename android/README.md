@@ -12,6 +12,8 @@
 
 ## 自动构建
 
+App 画布界面顶部使用单行操作栏，宽度不足时可左右滑动。网页就绪后收起原生标题栏，应用菜单移到该行末尾的 ⋮ 按钮；连接错误或检测页面仍保留原生导航，避免无法返回。
+
 修改 `android/` 并推送 main，或手动运行 GitHub Actions 的 **Build Android APK**。工作流使用 JDK 17、Gradle 8.11.1、Android SDK 35，执行 Release 单元测试、Lint、APK 构建及签名验证。成功结果位于 `never-map-android` artifact，保留 7 天；正式可下载版本另存 Releases。
 
 签名材料仅存 GitHub Actions 加密 Secrets：`NEVER_MAP_KEYSTORE_BASE64` 和 `NEVER_MAP_STORE_PASSWORD`。密钥别名 `never-map`，PKCS12。私有本机备份在项目 `.cache/android-signing/`，不得提交或公开；丢失签名密钥将无法覆盖升级。版本号使用工作流 run number，请始终使用同一工作流生成升级包。
