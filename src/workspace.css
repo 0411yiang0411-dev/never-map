@@ -8,7 +8,7 @@ header.app-header .app-command-scroll{display:flex;align-items:center;flex-wrap:
 .app-header .canvas-management{width:auto;flex-wrap:nowrap;gap:6px;justify-content:flex-start}
 .app-header .canvas-management select{width:150px;min-width:110px;max-width:150px;height:40px;font-size:13px}
 .app-header .app-board-tools,.app-header .board-toolbar{display:contents}
-.app-header .app-command-scroll button{height:40px;min-width:40px;padding:7px 10px;font-size:13px;white-space:nowrap}
+.app-header .app-command-scroll button{flex:0 0 auto;height:40px;min-width:40px;padding:7px 10px;font-size:13px;white-space:nowrap}
 .app-header .app-command-scroll .sync-status{flex:0 0 auto;min-width:0;max-width:240px;overflow:hidden;text-overflow:ellipsis;font-size:12px;margin:0 4px}
 .app-header .app-command-scroll .app-menu-button{font-size:23px;line-height:1}
 .app-command-scroll::-webkit-scrollbar{height:3px}
