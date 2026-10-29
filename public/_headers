@@ -3,3 +3,6 @@
   Referrer-Policy: no-referrer
   X-Frame-Options: DENY
   Permissions-Policy: camera=(), microphone=(), geolocation=()
+/offline-shell.js
+  Cache-Control: no-cache
+  Service-Worker-Allowed: /

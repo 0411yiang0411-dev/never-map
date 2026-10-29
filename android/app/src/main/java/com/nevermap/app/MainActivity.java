@@ -221,7 +221,7 @@ public class MainActivity extends Activity {
     @Override protected void onNewIntent(Intent intent) { super.onNewIntent(intent);setIntent(intent);String url=intent.getDataString();if(AppPolicy.isAppUrl(url)){if(web==null)createWebView();web.loadUrl(url);} }
     @Override public void onBackPressed() { if(web!=null&&web.canGoBack())web.goBack();else moveTaskToBack(true); }
     @Override protected void onSaveInstanceState(Bundle state) { if(web!=null)web.saveState(state);super.onSaveInstanceState(state); }
-    @Override protected void onPause() { if(web!=null)web.onPause();CookieManager.getInstance().flush();super.onPause(); }
-    @Override protected void onResume() { super.onResume();if(web!=null)web.onResume();if(updater!=null)updater.onResume(); }
+    @Override protected void onPause() { if(web!=null){if(AppPolicy.isAppUrl(web.getUrl()))web.evaluateJavascript("window.dispatchEvent(new Event('never-map-pause'));",null);web.onPause();}CookieManager.getInstance().flush();super.onPause(); }
+    @Override protected void onResume() { super.onResume();if(web!=null){web.onResume();if(AppPolicy.isAppUrl(web.getUrl()))web.evaluateJavascript("window.dispatchEvent(new Event('never-map-resume'));",null);}if(updater!=null)updater.onResume(); }
     @Override protected void onDestroy() { if(updater!=null)updater.close();if(fileCallback!=null)fileCallback.onReceiveValue(null);if(web!=null){content.removeView(web);web.destroy();}files.execute(()->{cancelTransfer();discardPending();});files.shutdown();super.onDestroy(); }
 }

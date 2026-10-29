@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite --host 127.0.0.1",
-    "build": "node scripts/retain-browser-assets.mjs snapshot && tsc --noEmit && vite build && node scripts/copy-fonts.mjs && node scripts/retain-browser-assets.mjs restore",
+    "build": "node scripts/retain-browser-assets.mjs snapshot && tsc --noEmit && vite build && node scripts/copy-fonts.mjs && node scripts/retain-browser-assets.mjs restore && node scripts/build-offline-shell.mjs",
     "test": "node --test tests/*.test.mjs",
     "deploy": "pnpm run build && wrangler deploy",
     "cf:login": "wrangler login",
