@@ -39,7 +39,10 @@ to recreate the drawing engine. Dependencies are pinned by `pnpm-lock.yaml`.
 
 ## Cloud deployment
 
-Live deployment: https://never-map.never-map-0411yiang0411.workers.dev
+Primary editor: https://never-map-0411yiang0411.pages.dev/
+
+The original workers.dev entry remains an alternate API/editor entry. See
+`docs/access-entries.md` for the Pages service binding and Android fallback.
 
 For a NEW deployment, first set `CLOUD_ENABLED=false`, create private D1/R2
 bindings, apply the SQL migrations in order, and configure `ACCESS_TOKEN` and

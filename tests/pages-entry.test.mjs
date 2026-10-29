@@ -10,3 +10,8 @@ test('Pages static assets do not invoke the API and missing service fails closed
   const response=await entry.fetch(new Request('https://never-map-0411yiang0411.pages.dev/assets/app.js'),{ASSETS:{fetch:async()=>new Response('static')}});assert.equal(await response.text(),'static');
   assert.equal((await entry.fetch(new Request('https://never-map-0411yiang0411.pages.dev/api/status'),{})).status,503);
 });
+test('shared editing links stay on the working Pages entry without changing the capability',async()=>{
+  const response=await entry.fetch(new Request('https://never-map-0411yiang0411.pages.dev/api/share'),{NEVER_MAP:{fetch:async()=>Response.json({url:'https://never-map.never-map-0411yiang0411.workers.dev/#share=fixture&canvas=second'})}});
+  assert.equal((await response.json()).url,'https://never-map-0411yiang0411.pages.dev/#share=fixture&canvas=second');
+  assert.equal(response.headers.get('Cache-Control'),'no-store');
+});

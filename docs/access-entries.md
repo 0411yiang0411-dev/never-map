@@ -32,3 +32,14 @@ Browser/Android local storage is origin-specific. The new entry uses the same
 cloud canvases after login, but cannot silently read the original origin's
 IndexedDB. Old local caches are preserved; do not clear app/site storage or
 uninstall as a troubleshooting step, especially with unsynchronized edits.
+
+Fresh blank devices always read an existing nonempty cloud scene before any
+upload. Theme defaults are normalized so initial editor setup does not turn a
+blank page into a conflicting local edit. A completed canvas load automatically
+fits content when no meaningful saved local viewport exists. Local viewport
+coordinates are saved independently of cloud content, and the main menu offers
+`定位全部内容` for explicit recovery of an offscreen canvas. The lasso is an
+icon-only control inside the central native toolbar.
+
+`/refresh.html` updates the static shell and then opens the editor without
+deleting IndexedDB, credentials, local canvas data or pending uploads.

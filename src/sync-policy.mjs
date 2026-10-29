@@ -12,3 +12,6 @@ export function resumeDecision({ pending, revision, localSignature, lastUploadSi
   if (revision !== null && remoteRevision === revision + 1 && lastUploadSignature === remoteSignature) return 'acknowledged-upload-again';
   return 'conflict';
 }
+export function initialCloudShouldWin(revision,localElements,remoteElements){
+  return revision===null && !localElements.some(e=>!e.isDeleted) && remoteElements.some(e=>!e.isDeleted);
+}

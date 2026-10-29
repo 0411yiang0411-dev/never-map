@@ -21,3 +21,5 @@ header.app-header .app-command-scroll{display:flex;align-items:center;flex-wrap:
 .nm-align-guides{position:fixed;inset:0;width:100vw;height:100vh;z-index:24;pointer-events:none}.nm-align-guides path{fill:none;stroke:#e777c7;stroke-width:1;stroke-dasharray:4 3}
 
 .excalidraw .App-toolbar>.Stack{max-width:calc(100vw - 155px);overflow-x:auto;scrollbar-width:thin}.excalidraw .App-toolbar>.Stack>*{flex-shrink:0}.nm-canvas-tools{padding-left:6px;border-left:1px solid #8884}.nm-canvas-tools>button{font-size:11px;padding:5px 7px;height:36px;min-height:36px}
+
+.nm-canvas-tools>.nm-lasso-tool{width:36px;min-width:36px;height:36px;padding:8px;display:inline-flex;align-items:center;justify-content:center;border:0;border-radius:6px;background:transparent}.nm-lasso-tool svg{flex:none}.nm-canvas-tools>.nm-lasso-tool[aria-pressed=true]{background:var(--color-primary-light,#4d4875)}
