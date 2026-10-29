@@ -26,3 +26,18 @@ not a provider-enforced account spending cap.
 Before deploying: build frontend, bundle Worker, run quota and Worker tests,
 verify account permissions, free plan and account-wide R2 usage. Do not claim
 deployment until the deployed URL and saving/reloading have been verified.
+
+Access recovery (2026-10-29): the primary frontend is now
+https://never-map-0411yiang0411.pages.dev/ . The user confirmed this entry opens;
+the original workers.dev address continued returning ERR_FAILED on their devices
+even after a rollback. Pages forwards /api/* through a service binding to the
+existing never-map Worker, preserving D1/R2/authentication/quota guards. Frontend
+deployment must update Pages (see docs/access-entries.md), not only run the root
+Worker deploy command. Explicit Pages mode is required to avoid Wrangler's
+automatic Pages-to-Workers delegation. No paid plan was enabled.
+
+Android v1.0.8 uses the Pages entry and has an alternate-entry fallback. Local
+browser storage is origin-specific; never clear old app/site data as a fix.
+Private recovery exports live in ignored output/recovery/, with full cloud
+backups under .cache/backups/. Never publish these files. Initial empty devices
+must read existing cloud content before uploading; keep that recovery guard.
