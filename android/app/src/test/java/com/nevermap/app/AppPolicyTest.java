@@ -5,12 +5,21 @@ public class AppPolicyTest {
     @Test public void permitsOnlyExactHttpsOriginForAppAndSharedLinks() {
         assertTrue(AppPolicy.isAppUrl(AppPolicy.HOME));
         assertTrue(AppPolicy.isAppUrl(AppPolicy.ORIGIN + "/#share=example&canvas=main"));
+        assertTrue(AppPolicy.isAppUrl(AppPolicy.LEGACY_ORIGIN + "/#canvas=main"));
+        assertFalse(AppPolicy.isAppUrl("https://never-map-0411yiang0411.pages.dev.evil.example"));
         assertFalse(AppPolicy.isAppUrl("http://never-map.never-map-0411yiang0411.workers.dev"));
         assertFalse(AppPolicy.isAppUrl(AppPolicy.ORIGIN + ".evil.example"));
         assertFalse(AppPolicy.isAppUrl("https://user@never-map.never-map-0411yiang0411.workers.dev"));
         assertFalse(AppPolicy.isAppUrl(AppPolicy.ORIGIN + ":444"));
         assertFalse(AppPolicy.isAppUrl("javascript:alert(1)"));
         assertFalse(AppPolicy.isAppUrl("file:///data/data/com.nevermap.app"));
+    }
+    @Test public void alternateEntryPreservesCanvasAndShareButRejectsUntrustedDestinations() {
+        String path="/?app=android#share=fixture%2Btoken&canvas=board-2";
+        assertEquals(AppPolicy.ORIGIN+path,AppPolicy.alternateUrl(AppPolicy.LEGACY_ORIGIN+path));
+        assertEquals(AppPolicy.LEGACY_ORIGIN+path,AppPolicy.alternateUrl(AppPolicy.ORIGIN+path));
+        assertNull(AppPolicy.alternateUrl("https://evil.example/?app=android"));
+        assertNull(AppPolicy.alternateUrl(AppPolicy.ORIGIN+":444/"));
     }
     @Test public void stripsExportPathsAndControlCharacters() {
         assertEquals("drawing.excalidraw", AppPolicy.fileName("../../drawing.excalidraw"));

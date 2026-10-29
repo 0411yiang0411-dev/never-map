@@ -8,6 +8,7 @@
         <activity android:name=".MainActivity" android:exported="true" android:configChanges="keyboardHidden|orientation|screenSize|smallestScreenSize|screenLayout" android:windowSoftInputMode="adjustResize">
             <intent-filter><action android:name="android.intent.action.MAIN"/><category android:name="android.intent.category.LAUNCHER"/></intent-filter>
             <intent-filter><action android:name="android.intent.action.VIEW"/><category android:name="android.intent.category.DEFAULT"/><category android:name="android.intent.category.BROWSABLE"/><data android:scheme="https" android:host="never-map.never-map-0411yiang0411.workers.dev"/></intent-filter>
+            <intent-filter><action android:name="android.intent.action.VIEW"/><category android:name="android.intent.category.DEFAULT"/><category android:name="android.intent.category.BROWSABLE"/><data android:scheme="https" android:host="never-map-0411yiang0411.pages.dev"/></intent-filter>
         </activity>
     </application>
 </manifest>

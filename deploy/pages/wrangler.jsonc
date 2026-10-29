@@ -1,0 +1,6 @@
+{
+  "name": "never-map-0411yiang0411",
+  "pages_build_output_dir": "../../.tmp/pages",
+  "compatibility_date": "2026-10-10",
+  "services": [{ "binding": "NEVER_MAP", "service": "never-map" }]
+}

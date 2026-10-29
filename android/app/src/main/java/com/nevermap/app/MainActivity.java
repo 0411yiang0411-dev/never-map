@@ -43,6 +43,11 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.Collections;
+import java.util.Arrays;
+import java.util.HashSet;
+import java.util.Set;
+import android.os.Handler;
+import android.os.Looper;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -62,6 +67,10 @@ public class MainActivity extends Activity {
     private boolean mainLoadFailed;
     private String bridgeScript;
     private AppUpdater updater;
+    private static final Set<String> TRUSTED_ORIGINS=Collections.unmodifiableSet(new HashSet<>(Arrays.asList(AppPolicy.ORIGIN,AppPolicy.LEGACY_ORIGIN)));
+    private final Handler entryHandler=new Handler(Looper.getMainLooper());
+    private boolean alternateTried;
+    private final Runnable entryTimeout=()->{if(web!=null&&!isFinishing()){if(!tryAlternate(web.getUrl()))showError("页面连接超时，请使用连接检测或切换入口");}};
 
     private static class Transfer {
         String id, name, mime;
@@ -114,13 +123,13 @@ public class MainActivity extends Activity {
         content.addView(web,new FrameLayout.LayoutParams(-1,-1));
         makeErrorPanel();
         if (WebViewFeature.isFeatureSupported(WebViewFeature.WEB_MESSAGE_LISTENER)) {
-            WebViewCompat.addWebMessageListener(web,"NeverMapAndroid",Collections.singleton(AppPolicy.ORIGIN),(view,message,sourceOrigin,isMainFrame,replyProxy) -> {
+            WebViewCompat.addWebMessageListener(web,"NeverMapAndroid",TRUSTED_ORIGINS,(view,message,sourceOrigin,isMainFrame,replyProxy) -> {
                 if (!isMainFrame || !AppPolicy.isAppUrl(sourceOrigin.toString()) || message.getType()!=WebMessageCompat.TYPE_STRING) return;
                 String body = message.getData();
                 if (body == null || body.length() > 120000) return;
                 files.execute(() -> receiveExport(body));
             });
-            if (WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT)) WebViewCompat.addDocumentStartJavaScript(web,bridgeScript,Collections.singleton(AppPolicy.ORIGIN));
+            if (WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT)) WebViewCompat.addDocumentStartJavaScript(web,bridgeScript,TRUSTED_ORIGINS);
         }
         web.setWebViewClient(new WebViewClient() {
             @Override public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
@@ -130,13 +139,15 @@ public class MainActivity extends Activity {
                 if (AppPolicy.isExternalHttps(url)) openExternal(url);
                 return true;
             }
-            @Override public void onPageStarted(WebView view,String url,android.graphics.Bitmap icon) { mainLoadFailed=false;nativeBar.setVisibility(View.VISIBLE);errorPanel.setVisibility(View.GONE);progress.setVisibility(View.VISIBLE); }
+            @Override public void onPageStarted(WebView view,String url,android.graphics.Bitmap icon) { mainLoadFailed=false;nativeBar.setVisibility(View.VISIBLE);errorPanel.setVisibility(View.GONE);progress.setVisibility(View.VISIBLE);entryHandler.removeCallbacks(entryTimeout);if(AppPolicy.isAppUrl(url))entryHandler.postDelayed(entryTimeout,15000); }
             @Override public void onPageFinished(WebView view,String url) {
+                if(!url.equals(view.getUrl()))return;
+                if(!WebViewFeature.isFeatureSupported(WebViewFeature.WEB_MESSAGE_LISTENER))entryHandler.removeCallbacks(entryTimeout);
                 progress.setVisibility(View.GONE);CookieManager.getInstance().flush();
                 if (AppPolicy.isAppUrl(url) && WebViewFeature.isFeatureSupported(WebViewFeature.WEB_MESSAGE_LISTENER)) view.evaluateJavascript(bridgeScript,null);
                 if (!mainLoadFailed) errorPanel.setVisibility(View.GONE);
             }
-            @Override public void onReceivedError(WebView view,WebResourceRequest request,WebResourceError error) { if (request.isForMainFrame()) showError("连接未完成（"+error.getErrorCode()+"）\n"+error.getDescription()); }
+            @Override public void onReceivedError(WebView view,WebResourceRequest request,WebResourceError error) { if (request.isForMainFrame() && !tryAlternate(request.getUrl().toString())) showError("连接未完成（"+error.getErrorCode()+"）\n"+error.getDescription()); }
             @Override public void onReceivedHttpError(WebView view,WebResourceRequest request,WebResourceResponse response) { if (request.isForMainFrame()) showError("网站返回 HTTP "+response.getStatusCode()); }
             @Override public void onReceivedSslError(WebView view,SslErrorHandler handler,SslError error) { handler.cancel();showError("HTTPS 证书验证未通过，请检查设备时间。未绕过验证。"); }
             @Override public boolean onRenderProcessGone(WebView view,android.webkit.RenderProcessGoneDetail detail) {
@@ -169,20 +180,28 @@ public class MainActivity extends Activity {
         Button diagnostics=new Button(this);diagnostics.setText("连接检测");diagnostics.setOnClickListener(v->{if(web==null)createWebView();web.loadUrl(AppPolicy.ORIGIN+"/connection-check.html");});errorPanel.addView(diagnostics);
         errorPanel.setVisibility(View.GONE);content.addView(errorPanel,new FrameLayout.LayoutParams(-1,-1));
     }
+    private boolean tryAlternate(String failedUrl) {
+        entryHandler.removeCallbacks(entryTimeout);
+        String next=AppPolicy.alternateUrl(failedUrl);
+        if(alternateTried||next==null||web==null)return false;
+        alternateTried=true;toast("正在切换备用入口，云端画布保持不变");web.loadUrl(next);return true;
+    }
     private void showError(String message) {
+        entryHandler.removeCallbacks(entryTimeout);
         mainLoadFailed=true;nativeBar.setVisibility(View.VISIBLE);progress.setVisibility(View.GONE);
         android.content.pm.PackageInfo provider=WebView.getCurrentWebViewPackage();
         errorText.setText(message+"\n\n页面连接未完成，本机画布缓存没有被清除。\nWebView："+(provider==null?"未知":provider.versionName));errorPanel.setVisibility(View.VISIBLE);
     }
-    private void reload() { if(web==null){createWebView();web.loadUrl(AppPolicy.HOME);}else web.reload(); }
+    private void reload() { alternateTried=false;if(web==null){createWebView();web.loadUrl(AppPolicy.HOME);}else web.reload(); }
     private void showMenu(View anchor) {
-        PopupMenu menu=new PopupMenu(this,anchor);String[] names={"刷新网页","连接检测","在浏览器打开","GitHub 源码","检查更新","关于应用"};for(int i=0;i<names.length;i++)menu.getMenu().add(0,i,i,names[i]);
+        PopupMenu menu=new PopupMenu(this,anchor);String[] names={"刷新网页","连接检测","在浏览器打开","GitHub 源码","检查更新","切换访问入口 / 原入口缓存","关于应用"};for(int i=0;i<names.length;i++)menu.getMenu().add(0,i,i,names[i]);
         menu.setOnMenuItemClickListener(item->{switch(item.getItemId()){
             case 0:reload();break;
             case 1:if(web==null)createWebView();web.loadUrl(AppPolicy.ORIGIN+"/connection-check.html");break;
             case 2:openExternal(web!=null&&AppPolicy.isAppUrl(web.getUrl())?web.getUrl():AppPolicy.HOME);break;
             case 3:openExternal(AppPolicy.REPOSITORY);break;
             case 4:updater.check(true);break;
+            case 5:if(web!=null){String alternate=AppPolicy.alternateUrl(web.getUrl());if(alternate!=null){alternateTried=false;web.loadUrl(alternate);}}break;
             default:new AlertDialog.Builder(this).setTitle("never-map "+BuildConfig.VERSION_NAME).setMessage("现有个人画布的独立 Android 入口。\n触控笔和手势以网页工具为准；导出通过系统文件选择器保存。\n不包含密码，首次使用请登录原有个人账户。\n共享同一云端数据；本机缓存与系统浏览器独立。").setPositiveButton("确定",null).show();
         }return true;});menu.show();
     }
@@ -192,7 +211,7 @@ public class MainActivity extends Activity {
     private void receiveExport(String body) {
         try {
             JSONObject message=new JSONObject(body);String type=message.optString("type"),id=message.optString("id");
-            if(type.equals("chromeReady")){runOnUiThread(()->{if(!mainLoadFailed)nativeBar.setVisibility(View.GONE);});return;}
+            if(type.equals("chromeReady")){runOnUiThread(()->{entryHandler.removeCallbacks(entryTimeout);if(!mainLoadFailed)nativeBar.setVisibility(View.GONE);});return;}
             if(type.equals("appMenu")){runOnUiThread(()->showMenu(web!=null?web:content));return;}
             if(type.equals("clipboard")){String text=message.optString("text");if(text.length()<=200000)runOnUiThread(()->{ClipboardManager clipboard=(ClipboardManager)getSystemService(CLIPBOARD_SERVICE);clipboard.setPrimaryClip(ClipData.newPlainText("never-map",text));});return;}
             if(type.equals("notice")){toast(message.optString("text","导出失败"));return;}
@@ -218,10 +237,10 @@ public class MainActivity extends Activity {
         if(request==OPEN_FILE){if(fileCallback==null)return;Uri[] selected=null;if(result==RESULT_OK&&data!=null){if(data.getClipData()!=null){selected=new Uri[data.getClipData().getItemCount()];for(int i=0;i<selected.length;i++)selected[i]=data.getClipData().getItemAt(i).getUri();}else if(data.getData()!=null)selected=new Uri[]{data.getData()};}fileCallback.onReceiveValue(selected);fileCallback=null;}
         if(request==SAVE_FILE){final Uri destination=result==RESULT_OK&&data!=null?data.getData():null;final File source=pendingExport;pendingExport=null;if(source==null)return;files.execute(()->{try{if(destination!=null){try(InputStream input=new FileInputStream(source);OutputStream output=getContentResolver().openOutputStream(destination)){if(output==null)throw new IllegalStateException();byte[] buffer=new byte[65536];int count;while((count=input.read(buffer))!=-1)output.write(buffer,0,count);}toast("文件已保存");}}catch(Exception ignored){toast("文件未能保存，原画布仍保留");}finally{source.delete();}});}
     }
-    @Override protected void onNewIntent(Intent intent) { super.onNewIntent(intent);setIntent(intent);String url=intent.getDataString();if(AppPolicy.isAppUrl(url)){if(web==null)createWebView();web.loadUrl(url);} }
+    @Override protected void onNewIntent(Intent intent) { super.onNewIntent(intent);setIntent(intent);String url=intent.getDataString();if(AppPolicy.isAppUrl(url)){alternateTried=false;if(web==null)createWebView();web.loadUrl(url);} }
     @Override public void onBackPressed() { if(web!=null&&web.canGoBack())web.goBack();else moveTaskToBack(true); }
     @Override protected void onSaveInstanceState(Bundle state) { if(web!=null)web.saveState(state);super.onSaveInstanceState(state); }
     @Override protected void onPause() { if(web!=null){if(AppPolicy.isAppUrl(web.getUrl()))web.evaluateJavascript("window.dispatchEvent(new Event('never-map-pause'));",null);web.onPause();}CookieManager.getInstance().flush();super.onPause(); }
     @Override protected void onResume() { super.onResume();if(web!=null){web.onResume();if(AppPolicy.isAppUrl(web.getUrl()))web.evaluateJavascript("window.dispatchEvent(new Event('never-map-resume'));",null);}if(updater!=null)updater.onResume(); }
-    @Override protected void onDestroy() { if(updater!=null)updater.close();if(fileCallback!=null)fileCallback.onReceiveValue(null);if(web!=null){content.removeView(web);web.destroy();}files.execute(()->{cancelTransfer();discardPending();});files.shutdown();super.onDestroy(); }
+    @Override protected void onDestroy() { entryHandler.removeCallbacksAndMessages(null); if(updater!=null)updater.close();if(fileCallback!=null)fileCallback.onReceiveValue(null);if(web!=null){content.removeView(web);web.destroy();}files.execute(()->{cancelTransfer();discardPending();});files.shutdown();super.onDestroy(); }
 }
