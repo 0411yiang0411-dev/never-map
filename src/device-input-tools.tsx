@@ -2,7 +2,7 @@ import {useEffect,useRef,useState} from 'react';
 import {CaptureUpdateAction,convertToExcalidrawElements,newElementWith} from '@excalidraw/excalidraw';
 import type {ExcalidrawImperativeAPI} from '@excalidraw/excalidraw/types';
 import {appendPenSamples,createTouchGesture,updateTouchGesture,useRawPen} from './device-input.mjs';
-import {penSettings,pressureGeometry} from './pen-pressure.mjs';
+import {penSettings,pressureWidth} from './pen-pressure.mjs';
 import {PenSettings} from './pen-settings';
 
 export function DeviceInput({api}:{api:ExcalidrawImperativeAPI|null}){
@@ -18,12 +18,24 @@ export function DeviceInput({api}:{api:ExcalidrawImperativeAPI|null}){
     const release=(event:PointerEvent)=>{try{(event.target as Element).releasePointerCapture(event.pointerId);}catch{}};
     const flushTouch=()=>{if(touchFrame){cancelAnimationFrame(touchFrame);touchFrame=0;}if(!gesture||!touches.size)return;const next=updateTouchGesture(gesture,[...touches.values()]);api.updateScene({appState:{scrollX:next.scrollX,scrollY:next.scrollY,zoom:{value:next.zoom as any}},captureUpdate:CaptureUpdateAction.NEVER});};
     const resetGesture=()=>{gesture=touches.size?createTouchGesture([...touches.values()],view()):null;};
-    const flush=(finished=false)=>{if(!pen)return;if(frame){cancelAnimationFrame(frame);frame=0;}const stroke=pen,points=stroke.points.map((p:number[])=>[...p]);if(points.length===1)points.push([points[0][0]+.001,points[0][1]+.001]);
-      if(stroke.settings.enabled){const geometry=pressureGeometry(stroke.points,stroke.pressures,stroke.settings);if(!finished){const app=api.getAppState();stroke.preview.setAttribute('viewBox',`0 0 ${window.innerWidth} ${window.innerHeight}`);stroke.group.setAttribute('transform',`translate(${app.offsetLeft+(stroke.x+app.scrollX)*app.zoom.value} ${app.offsetTop+(stroke.y+app.scrollY)*app.zoom.value}) scale(${app.zoom.value})`);stroke.path.setAttribute('d',geometry.path);return;}
+    const flush=(finished=false)=>{if(!pen)return;if(frame){cancelAnimationFrame(frame);frame=0;}const stroke=pen;
+      if(stroke.settings.enabled){
+        // Paint only new samples. Never rebuild/re-rasterize the whole SVG
+        // outline on every raw event; long strokes must cost the same per sample.
+        const ctx=stroke.context as CanvasRenderingContext2D,app=api.getAppState(),z=app.zoom.value;
+        ctx.setTransform(stroke.dpr*z,0,0,stroke.dpr*z,stroke.dpr*(app.offsetLeft+(stroke.x+app.scrollX)*z),stroke.dpr*(app.offsetTop+(stroke.y+app.scrollY)*z));
+        ctx.fillStyle=stroke.element.strokeColor;
+        for(let i=stroke.drawn;i<stroke.points.length;i++){
+          const [x,y]=stroke.points[i],r=pressureWidth(stroke.pressures[i],stroke.settings)/2;
+          ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.fill();
+          if(i){const [px,py]=stroke.points[i-1],len=Math.hypot(x-px,y-py);if(len){const nx=-(y-py)/len,ny=(x-px)/len,pr=pressureWidth(stroke.pressures[i-1],stroke.settings)/2;ctx.beginPath();ctx.moveTo(px+nx*pr,py+ny*pr);ctx.lineTo(x+nx*r,y+ny*r);ctx.lineTo(x-nx*r,y-ny*r);ctx.lineTo(px-nx*pr,py-ny*pr);ctx.closePath();ctx.fill();}}
+        }
+        stroke.drawn=stroke.points.length;if(!finished)return;
         const xs=stroke.points.map((p:number[])=>p[0]),ys=stroke.points.map((p:number[])=>p[1]);
         const native={...stroke.element,type:'freedraw',points:stroke.points.map((p:number[])=>[...p]),pressures:[...stroke.pressures],simulatePressure:false,lastCommittedPoint:stroke.points[stroke.points.length-1],width:Math.max(...xs)-Math.min(...xs),height:Math.max(...ys)-Math.min(...ys),customData:{neverMapPen:true,pressurePenV2:{settings:stroke.settings}}};
         api.updateScene({elements:[...api.getSceneElements(),native as any],captureUpdate:CaptureUpdateAction.IMMEDIATELY});requestAnimationFrame(()=>requestAnimationFrame(()=>stroke.preview.remove()));return;
       }
+      const points=stroke.points.map((p:number[])=>[...p]);if(points.length===1)points.push([points[0][0]+.001,points[0][1]+.001]);
       const xs=points.map((p:number[])=>p[0]),ys=points.map((p:number[])=>p[1]);
       const updated=newElementWith(stroke.element,{points,width:Math.max(...xs)-Math.min(...xs),height:Math.max(...ys)-Math.min(...ys),lastCommittedPoint:points[points.length-1]} as any);stroke.element=updated;
       const elements=api.getSceneElements();api.updateScene({elements:elements.some(e=>e.id===updated.id)?elements.map(e=>e.id===updated.id?updated:e):[...elements,updated],captureUpdate:finished?CaptureUpdateAction.IMMEDIATELY:CaptureUpdateAction.NEVER});
@@ -41,7 +53,7 @@ export function DeviceInput({api}:{api:ExcalidrawImperativeAPI|null}){
       const selectedSettings={...settingsRef.current};
       const element=convertToExcalidrawElements([{type:'line',x,y,points:[[0,0]],strokeColor:app.currentItemStrokeColor,strokeWidth:selectedSettings.width,opacity:app.currentItemOpacity,roughness:0,roundness:null,strokeStyle:'solid',startArrowhead:null,endArrowhead:null,customData:{neverMapPen:true,rawPenV2:true}}])[0];
       pen={id:event.pointerId,x,y,element,settings:selectedSettings,points:[],pressures:[]};
-      if(selectedSettings.enabled){const ns='http://www.w3.org/2000/svg',preview=document.createElementNS(ns,'svg'),group=document.createElementNS(ns,'g'),path=document.createElementNS(ns,'path');preview.classList.add('nm-pen-preview');path.setAttribute('fill',element.strokeColor);path.setAttribute('fill-rule','nonzero');group.setAttribute('opacity',String(element.opacity/100));group.appendChild(path);preview.appendChild(group);document.body.appendChild(preview);Object.assign(pen,{preview,group,path});}
+      if(selectedSettings.enabled){const preview=document.createElement('canvas'),dpr=Math.min(window.devicePixelRatio||1,2);preview.classList.add('nm-pen-preview');preview.width=Math.ceil(innerWidth*dpr);preview.height=Math.ceil(innerHeight*dpr);preview.style.opacity=String(element.opacity/100);preview.style.filter=getComputedStyle(event.target as Element).filter;document.body.appendChild(preview);Object.assign(pen,{preview,context:preview.getContext('2d',{desynchronized:true}),dpr,drawn:0});}
       samples(event);try{(event.target as Element).setPointerCapture(event.pointerId);}catch{}flush();
     };
     const move=(event:PointerEvent)=>{

@@ -1,9 +1,10 @@
 import React,{forwardRef,useEffect,useImperativeHandle,useRef,useState} from 'react';
 import {createPortal} from 'react-dom';
-import {Excalidraw,exportToBlob,serializeAsJSON,CaptureUpdateAction} from '@excalidraw/excalidraw';
+import {Excalidraw,exportToBlob,serializeAsJSON,CaptureUpdateAction,MainMenu} from '@excalidraw/excalidraw';
 import type {ExcalidrawImperativeAPI,BinaryFiles} from '@excalidraw/excalidraw/types';
 import {RichNotes} from './rich-notes';
 import {TableTools,handleTablePaste} from './table-tools';
+import {LassoTools} from './lasso-tools';
 import {AutoAlign} from './auto-align-tools';
 import {DeviceInput} from './device-input-tools';
 import {HandwritingEraser} from './handwriting-eraser-tools';
@@ -14,15 +15,15 @@ import './workspace.css';
 
 type Drawing={elements:any[];appState:any;files:BinaryFiles};
 type Canvas={id:string;name:string;revision:number};
-type Cache={drawing:Drawing;revision:number|null;pending:boolean;fileKeys:Record<string,string>;lastUploadSignature?:string};
-type BoardHandle={flush:()=>Promise<boolean>;flushLocal:()=>Promise<void>;readCloud:()=>Promise<void>;overwrite:()=>Promise<void>;recover:()=>Promise<void>};
+type Cache={drawing:Drawing;revision:number|null;pending:boolean;fileKeys:Record<string,string>;lastUploadSignature?:string;forceUpload?:boolean};
+type BoardHandle={flush:()=>Promise<boolean>;flushLocal:()=>Promise<void>;readCloud:()=>Promise<void>;overwrite:()=>Promise<void>;recover:()=>Promise<void>;recoverCloud:()=>Promise<void>;exportDrawing:()=>Promise<void>;exportPNG:()=>Promise<void>};
 const params=new URLSearchParams(location.hash.slice(1));
 const shareToken=params.get('share');
 const nativeBridge=(window as Window & {NeverMapAndroid?:{postMessage:(message:string)=>void}}).NeverMapAndroid;
 const androidApp=!!nativeBridge || new URLSearchParams(location.search).get('app')==='android';
 const firstId=params.get('canvas') || (shareToken?'main':localStorage.getItem('never-map-last-canvas') || 'main');
 const blank=():Drawing=>({elements:[],appState:{viewBackgroundColor:'#ffffff'},files:{}});
-const signature=(drawing:Drawing)=>drawing.elements.map(e=>`${e.id}:${e.version}:${e.isDeleted}:${e.fileId || ''}`).join('|')+drawing.appState.viewBackgroundColor;
+const signature=(drawing:Drawing)=>drawing.elements.map(e=>`${e.id}:${e.version}:${e.isDeleted}:${e.fileId || ''}`).join('|')+drawing.appState.viewBackgroundColor+'|'+drawing.appState.theme;
 const json=(response:Response):Promise<any>=>response.json();
 async function request(path:string,options:RequestInit={},token=storedAccess()) {
   const controller=new AbortController(),timeout=setTimeout(()=>controller.abort(),20000);
@@ -59,12 +60,12 @@ export default function Workspace() {
   const [shareURL,setShareURL]=useState('');
   const [dialog,setDialog]=useState<'new'|'rename'|null>(null);
   const [name,setName]=useState('');
-  const [toolbarHost,setToolbarHost]=useState<HTMLDivElement|null>(null);
+
   const board=useRef<BoardHandle|null>(null);
   const connectedRef=useRef(false),connecting=useRef(false),connectRetry=useRef(0),connectFailures=useRef(0),currentId=useRef(canvasId),alive=useRef(true);
   currentId.current=canvasId;
   const selected=canvases.find(c=>c.id===canvasId);
-  useEffect(()=>{if(androidApp && toolbarHost)nativeBridge?.postMessage(JSON.stringify({type:'chromeReady'}));},[toolbarHost]);
+  useEffect(()=>{if(androidApp)nativeBridge?.postMessage(JSON.stringify({type:'chromeReady'}));},[]);
 
   async function connect(value=password,boot=false) {
     if(connecting.current || !value)return;connecting.current=true;
@@ -138,20 +139,13 @@ export default function Workspace() {
     } catch(error){setMessage((error as Error).message);} finally {setWorking(false);}
   }
   return <main>
-    <header className={androidApp?'app-header':undefined}><div className={androidApp?'app-command-scroll':'workspace-header-content'} aria-label={androidApp?'画布操作栏，可左右滑动':undefined} tabIndex={androidApp?0:undefined}><strong>never-map</strong><div className="canvas-management">
-      <select aria-label="画布列表" value={canvasId} disabled={!connected || working} onChange={e=>void switchCanvas(e.target.value)}>
-        {canvases.length?canvases.map(c=><option key={c.id} value={c.id}>{c.name}</option>):<option value={canvasId}>我的画布（本地）</option>}
-      </select>
-      <button disabled={!connected || working} onClick={()=>{setName('');setDialog('new');}}>新建画布</button>
-      <button disabled={!connected || working} onClick={()=>{setName(selected?.name || '我的画布');setDialog('rename');}}>重命名</button>
-    </div>{androidApp && <div className="app-board-tools" ref={setToolbarHost}/>}
-    <span className="sync-status" role="status" title={message}>{message}</span><button onClick={()=>setPanel(!panel)}>云端与共享</button>
-    {nativeBridge && <button className="app-menu-button" aria-label="应用菜单" onClick={()=>nativeBridge.postMessage(JSON.stringify({type:'appMenu'}))}>⋮</button>}</div></header>
+    <button className="nm-sync-button" aria-label="同步：以本机内容覆盖云端" title={message+' · 点击以本机覆盖云端'} onClick={()=>void board.current?.overwrite()}><span aria-hidden="true">↻</span><span className="nm-sync-label">同步</span></button>
+    <div className="nm-sync-status" role="status" title={message}>{message}</div>
     {panel && <aside><h2>个人云端画布</h2><p role="status">{message}</p><label>个人访问密码<input type="password" value={password} onChange={e=>setPassword(e.target.value)} autoComplete="off"/></label>
       <button disabled={working} onClick={()=>void connect()}>连接并检查</button>
       <button disabled={!connected || working} onClick={()=>void board.current?.readCloud()}>读取云端</button>
       <button disabled={!connected || working} onClick={()=>void board.current?.overwrite()}>以本机版本覆盖云端</button>
-      <button disabled={working} onClick={()=>void board.current?.recover()}>恢复本机未同步备份</button>
+      <button disabled={working} onClick={()=>void board.current?.recover()}>恢复本机未同步备份</button><button disabled={working} onClick={()=>void board.current?.recoverCloud()}>恢复覆盖前云端版本</button>
       {progress && <div className="connection-progress" role="status"><progress value={progress.value} max={100}/><p>{progress.label}</p></div>}
       {shareURL && <div className="share-link"><label>当前画布共享链接<input value={shareURL} readOnly onFocus={e=>e.currentTarget.select()}/></label><button onClick={async()=>{try{await navigator.clipboard.writeText(shareURL);setMessage('当前画布链接已复制');}catch{setMessage('请选中链接并手动复制');}}}>复制链接</button><small>链接持有人可编辑此工作区的画布。链接会直接打开当前选定画布。</small></div>}
       <p>登录会保存在此设备。打开或返回应用、网络恢复时自动同步；离线修改保存在本机，联网后自动补传。两端未同步修改冲突时会保留备份。</p>
@@ -160,21 +154,36 @@ export default function Workspace() {
       <button onClick={()=>setPanel(false)}>关闭</button>
     </aside>}
     {dialog && <div className="canvas-name-modal"><form onSubmit={e=>{e.preventDefault();void submitName();}}><h2>{dialog==='new'?'新建画布':'重命名画布'}</h2><label>画布名称<input autoFocus maxLength={80} value={name} onChange={e=>setName(e.target.value)}/></label><div><button disabled={working || !name.trim()} type="submit">保存</button><button type="button" disabled={working} onClick={()=>setDialog(null)}>取消</button></div></form></div>}
-    {ready && <Board key={canvasId} ref={board} id={canvasId} name={selected?.name || '我的画布'} connected={connected} authEpoch={authEpoch} onAuthLost={authLost} locked={working} toolbarHost={toolbarHost} onStatus={setMessage}/>}
+    {ready && <Board key={canvasId} ref={board} id={canvasId} name={selected?.name || '我的画布'} connected={connected} authEpoch={authEpoch} onAuthLost={authLost} locked={working} menu={<MainMenu>
+      <MainMenu.ItemCustom><label className="nm-canvas-picker">画布<select aria-label="画布列表" value={canvasId} disabled={!connected || working} onChange={e=>void switchCanvas(e.target.value)}>{canvases.length?canvases.map(c=><option key={c.id} value={c.id}>{c.name}</option>):<option value={canvasId}>我的画布（本地）</option>}</select></label></MainMenu.ItemCustom>
+      <MainMenu.Item disabled={!connected||working} onSelect={()=>{setName('');setDialog('new');}}>新建画布</MainMenu.Item>
+      <MainMenu.Item disabled={!connected||working} onSelect={()=>{setName(selected?.name||'我的画布');setDialog('rename');}}>重命名画布</MainMenu.Item>
+      <MainMenu.Separator/>
+      <MainMenu.Item onSelect={()=>void board.current?.exportDrawing()}>导出备份</MainMenu.Item>
+      <MainMenu.Item onSelect={()=>void board.current?.exportPNG()}>导出 PNG</MainMenu.Item>
+      <MainMenu.DefaultItems.LoadScene/>
+      <MainMenu.Item onSelect={()=>setPanel(true)}>云端与共享</MainMenu.Item>
+      {nativeBridge&&<MainMenu.Item onSelect={()=>nativeBridge.postMessage(JSON.stringify({type:'appMenu'}))}>应用菜单 / 检查更新</MainMenu.Item>}
+      <MainMenu.DefaultItems.ToggleTheme/>
+      <MainMenu.DefaultItems.ChangeCanvasBackground/>
+    </MainMenu>} onStatus={setMessage}/>}
   </main>;
 }
 
-const Board=forwardRef<BoardHandle,{id:string;name:string;connected:boolean;authEpoch:number;onAuthLost:()=>void;locked:boolean;toolbarHost:HTMLElement|null;onStatus:(s:string)=>void}>(function Board({id,name,connected,authEpoch,onAuthLost,locked,toolbarHost,onStatus},ref){
+const Board=forwardRef<BoardHandle,{id:string;name:string;connected:boolean;authEpoch:number;onAuthLost:()=>void;locked:boolean;menu:React.ReactNode;onStatus:(s:string)=>void}>(function Board({id,name,connected,authEpoch,onAuthLost,locked,menu,onStatus},ref){
   const [initial,setInitial]=useState<Drawing|null>(null);
   const [loading,setLoading]=useState(true);
   const [localReady,setLocalReady]=useState(false);
   const [apiReady,setApiReady]=useState<ExcalidrawImperativeAPI|null>(null);
+  const [toolHost,setToolHost]=useState<Element|null>(null);
+  useEffect(()=>{if(!apiReady)return;const root=document.querySelector('.canvas');if(!root)return;let frame=0;const find=()=>{frame=0;const node=root.querySelector('.App-toolbar > .Stack');setToolHost(previous=>previous===node?previous:node);};find();const observer=new MutationObserver(()=>{if(!frame)frame=requestAnimationFrame(find);});observer.observe(root,{childList:true,subtree:true});return()=>{observer.disconnect();cancelAnimationFrame(frame);};},[apiReady]);
   const [selection,setSelection]=useState<{id:string;version:number}|null>(null);
   const [tableSelection,setTableSelection]=useState<{id:string;version:number}|null>(null);
   const [alignEnabled,setAlignEnabled]=useState(()=>localStorage.getItem('never-map-auto-align')!=='off');
   const api=useRef<ExcalidrawImperativeAPI|null>(null);
   const latest=useRef<Drawing>(blank());
   const revision=useRef<number|null>(null);
+  const forceUpload=useRef(false);
   const pending=useRef(false),active=useRef(false),mounted=useRef(true),loadingRef=useRef(true);
   const fileKeys=useRef<Record<string,string>>({});
   const known=useRef(new Map<string,{key:string;dataURL:string}>());
@@ -187,12 +196,12 @@ const Board=forwardRef<BoardHandle,{id:string;name:string;connected:boolean;auth
   onlineSession.current=connected;
   const path=`canvases/${encodeURIComponent(id)}/scene`,slot=`canvas:${id}`;
   const status=(text:string)=>{if(mounted.current)onStatus(text);};
-  async function persist(){await writeCache(slot,{drawing:latest.current,revision:revision.current,pending:pending.current,fileKeys:fileKeys.current,lastUploadSignature:lastUpload.current} satisfies Cache);}
-  function failed(error:any){active.current=false;const policy=retryPolicy(error.status,failures.current++);blocked.current=policy.kind;retryAt.current=Date.now()+policy.delay;if(policy.kind==='auth')onAuthLost();status(policy.kind==='conflict'?'两端有未同步修改，已保留本机备份；请在云端面板选择版本':`同步暂缓：${error.message || '网络连接未完成'}；本机已保留${Number.isFinite(policy.delay)?'，将自动重连':''}`);}
+  async function persist(){await writeCache(slot,{drawing:latest.current,revision:revision.current,pending:pending.current,fileKeys:fileKeys.current,lastUploadSignature:lastUpload.current,forceUpload:forceUpload.current} satisfies Cache);}
+  function failed(error:any){active.current=false;const policy=retryPolicy(error.status,failures.current++);blocked.current=policy.kind;retryAt.current=Date.now()+(policy.kind==='conflict'&&forceUpload.current?1000:policy.delay);if(policy.kind==='auth')onAuthLost();status(policy.kind==='conflict'?'两端有未同步修改，已保留本机备份；请在云端面板选择版本':`同步暂缓：${error.message || '网络连接未完成'}；本机已保留${Number.isFinite(policy.delay)?'，将自动重连':''}`);}
   function healthy(){active.current=true;blocked.current='';retryAt.current=0;failures.current=0;}
   function show(drawing:Drawing) {
     latest.current=drawing;savedSignature.current=signature(drawing);
-    sceneGate.current.reset(drawing.elements,drawing.appState.viewBackgroundColor);
+    sceneGate.current.reset(drawing.elements,drawing.appState.viewBackgroundColor+'|'+drawing.appState.theme);
     if(api.current) {api.current.addFiles(Object.values(drawing.files));api.current.updateScene({elements:drawing.elements,appState:drawing.appState,captureUpdate:CaptureUpdateAction.NEVER});}
     else setInitial(drawing);
   }
@@ -219,7 +228,7 @@ const Board=forwardRef<BoardHandle,{id:string;name:string;connected:boolean;auth
     fileKeys.current={...fileKeys.current,...keys};
     for(const [fileId,file] of Object.entries(drawing.files))known.current.set(fileId,{key:keys[fileId],dataURL:file.dataURL});
     const wasLoading=loadingRef.current;loadingRef.current=true;
-    revision.current=remote.revision;pending.current=false;show(drawing);loadingRef.current=wasLoading;await persist();healthy();
+    revision.current=remote.revision;pending.current=false;forceUpload.current=false;show(drawing);loadingRef.current=wasLoading;await persist();healthy();
     status('已与云端同步 · 修改后约 5 秒自动保存');
   }
   function queue(){if(!timer.current)timer.current=setTimeout(()=>{timer.current=null;void sync();},5000);}
@@ -241,7 +250,7 @@ const Board=forwardRef<BoardHandle,{id:string;name:string;connected:boolean;auth
         lastUpload.current=signature(snapshot);await persist();
         const remote=await json(await request(path,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({revision:revision.current || 0,scene:{elements:snapshot.elements,appState:snapshot.appState,files}})}));
         revision.current=remote.revision;
-        if(signature(latest.current)===signature(snapshot))pending.current=false;
+        if(signature(latest.current)===signature(snapshot)){pending.current=false;forceUpload.current=false;}
         healthy();await persist();status(pending.current?'正在保存后续修改…':'已同步到云端');
         return true;
       } catch(error){failed(error);await persist().catch(()=>{});return false;}
@@ -258,20 +267,29 @@ const Board=forwardRef<BoardHandle,{id:string;name:string;connected:boolean;auth
     catch(error){failed(error);}
     finally {loadingRef.current=false;if(mounted.current)setLoading(false);}
   }
-  useImperativeHandle(ref,()=>({flush,flushLocal:persist,readCloud:()=>readCloud(true),overwrite:async()=>{
-    try {const remote=await json(await request(path));revision.current=remote.revision;pending.current=true;healthy();await sync();}catch(error){failed(error);}
-  },recover:async()=>{try{const cache=await readCache(`recovery:${id}`) as Cache|undefined;if(!cache){status('此画布没有本机恢复备份');return;}show(cache.drawing);revision.current=cache.revision;pending.current=true;active.current=false;blocked.current='conflict';retryAt.current=Infinity;await persist();status('本机备份已恢复；确认后可选择覆盖云端');}catch(error){status((error as Error).message);}}}));
+  async function overwrite(){
+    if(loadingRef.current||!api.current){status('正在读取本机画布，请稍后再同步');return;}
+    if(document.querySelector('.inline-rich-editor,.nm-table-inline,.nm-pen-preview') || api.current?.getAppState().editingTextElement){status('请先完成当前文字、表格或笔画编辑，再点击同步');return;}
+    forceUpload.current=true;pending.current=true;await persist();status('已排队上传本机内容 · 网络恢复后立即同步');
+    if(blocked.current==='network'||blocked.current==='conflict')retryAt.current=0;
+    await resumeCloud();
+  }
+  useImperativeHandle(ref,()=>({flush,flushLocal:persist,exportDrawing,exportPNG,readCloud:()=>readCloud(true),overwrite,recoverCloud:async()=>{try{const backup=await readCache(`cloud-before-overwrite:${id}`);if(!backup){status('没有覆盖前的云端备份');return;}await persist();await writeCache(`recovery:${id}`,{drawing:latest.current,revision:revision.current,pending:true,fileKeys:fileKeys.current});const decoded=await decode(backup.remote);fileKeys.current={...fileKeys.current,...decoded.keys};show(decoded.drawing);pending.current=true;forceUpload.current=false;active.current=false;blocked.current='conflict';retryAt.current=Infinity;await persist();status('已在本机恢复覆盖前云端版本；确认后点击同步上传');}catch(error){status((error as Error).message);}},recover:async()=>{try{const cache=await readCache(`recovery:${id}`) as Cache|undefined;if(!cache){status('此画布没有本机恢复备份');return;}show(cache.drawing);revision.current=cache.revision;pending.current=true;active.current=false;blocked.current='conflict';retryAt.current=Infinity;await persist();status('本机备份已恢复；确认后可选择覆盖云端');}catch(error){status((error as Error).message);}}}));
   function resumeCloud():Promise<void>{
     if(recoveryFlight.current)return recoveryFlight.current;
     if(!onlineSession.current || loadingRef.current || flight.current || Date.now()<retryAt.current || document.visibilityState==='hidden')return Promise.resolve();
-    if(document.querySelector('.note-modal,.inline-rich-editor,.nm-table-editor,.nm-table-inline,.nm-pen-preview') || api.current?.getAppState().editingTextElement)return Promise.resolve();
+    if(!pending.current && (document.querySelector('.note-modal,.inline-rich-editor,.nm-table-editor,.nm-table-inline,.nm-pen-preview') || api.current?.getAppState().editingTextElement))return Promise.resolve();
     recoveryFlight.current=(async()=>{
       try{
         if(blocked.current==='quota'){const quota=await json(await request('usage'));if(quota.paused)throw Object.assign(new Error(quota.reason),{status:429});}
-        const response=await request(revision.current===null?path:`${path}?after=${revision.current}`);
+        const response=await request(forceUpload.current?path:revision.current===null?path:`${path}?after=${revision.current}`);
         if(!mounted.current)return;
         if(response.status===204){healthy();if(pending.current)await sync();return;}
         const remote=await json(response),remoteSignature=signature(remote.scene || blank());
+        if(forceUpload.current && pending.current){
+          await writeCache(`cloud-before-overwrite:${id}`,{remote,savedAt:Date.now()});
+          revision.current=remote.revision;healthy();await sync();return;
+        }
         const decision=resumeDecision({pending:pending.current,revision:revision.current,localSignature:signature(latest.current),lastUploadSignature:lastUpload.current},remote.revision,remoteSignature);
         if(decision==='download')await applyRemote(remote,true);
         else if(decision==='upload'){healthy();await sync();}
@@ -291,22 +309,23 @@ const Board=forwardRef<BoardHandle,{id:string;name:string;connected:boolean;auth
         let cache=await readCache(slot) as Cache|undefined;
         if(!cache && id==='main'){const legacy=await readCache(shareToken?'shared-current':'current');if(legacy)cache={drawing:legacy,revision:null,pending:true,fileKeys:{}};}
         if(!mounted.current)return;
-        if(cache){latest.current=cache.drawing;revision.current=cache.revision;pending.current=cache.pending;fileKeys.current=cache.fileKeys || {};lastUpload.current=cache.lastUploadSignature || '';
+        if(cache){latest.current=cache.drawing;revision.current=cache.revision;pending.current=cache.pending;fileKeys.current=cache.fileKeys || {};lastUpload.current=cache.lastUploadSignature || '';forceUpload.current=!!cache.forceUpload;
           if(!cache.pending)for(const [fileId,file] of Object.entries(cache.drawing.files))if(fileKeys.current[fileId])known.current.set(fileId,{key:fileKeys.current[fileId],dataURL:file.dataURL});}
         show(latest.current);status(cache?'已读取本机画布 · 正在核对云端':'正在准备画布…');
       }catch(error){show(latest.current);status('本机缓存读取失败，请保留设备数据并导出备份');}
       finally {loadingRef.current=false;if(mounted.current){setLoading(false);setLocalReady(true);}}
     })();
     const poll=setInterval(()=>void resumeCloud(),5000);
-    const wake=()=>{if(blocked.current==='network')retryAt.current=0;void resumeCloud();};
+    const wake=()=>{if(blocked.current==='network'||(forceUpload.current&&blocked.current==='conflict'))retryAt.current=0;void resumeCloud();};
     const background=()=>{if(document.visibilityState==='hidden')void persist().catch(()=>{});else wake();};
     const save=()=>void persist().catch(()=>{});
+    const offline=()=>{if(pending.current)forceUpload.current=true;void persist().catch(()=>{});};window.addEventListener('offline',offline);
     for(const event of ['online','focus','never-map-resume'])window.addEventListener(event,wake);
     for(const event of ['pagehide','never-map-pause'])window.addEventListener(event,save);
     document.addEventListener('visibilitychange',background);
     const unload=(event:BeforeUnloadEvent)=>{if(pending.current || flight.current){event.preventDefault();event.returnValue='';}};
     window.addEventListener('beforeunload',unload);
-    return()=>{mounted.current=false;clearInterval(poll);for(const event of ['online','focus','never-map-resume'])window.removeEventListener(event,wake);for(const event of ['pagehide','never-map-pause'])window.removeEventListener(event,save);document.removeEventListener('visibilitychange',background);window.removeEventListener('beforeunload',unload);if(timer.current)clearTimeout(timer.current);if(localTimer.current)clearTimeout(localTimer.current);if(!loadingRef.current)void persist().catch(()=>{});};
+    return()=>{mounted.current=false;clearInterval(poll);window.removeEventListener('offline',offline);for(const event of ['online','focus','never-map-resume'])window.removeEventListener(event,wake);for(const event of ['pagehide','never-map-pause'])window.removeEventListener(event,save);document.removeEventListener('visibilitychange',background);window.removeEventListener('beforeunload',unload);if(timer.current)clearTimeout(timer.current);if(localTimer.current)clearTimeout(localTimer.current);if(!loadingRef.current)void persist().catch(()=>{});};
   },[]);
   useEffect(()=>{if(localReady && connected){if(blocked.current==='auth'){blocked.current='';retryAt.current=0;}void resumeCloud();}},[localReady,connected,authEpoch]);
   async function exportDrawing(){if(!api.current)return;download(new Blob([serializeAsJSON(api.current.getSceneElements(),api.current.getAppState(),api.current.getFiles(),'local')],{type:'application/json'}),`${name}.excalidraw`);}
@@ -319,23 +338,25 @@ const Board=forwardRef<BoardHandle,{id:string;name:string;connected:boolean;auth
     setTableSelection(previous=>table?previous&&previous.id===table.id&&previous.version===table.version?previous:{id:table.id,version:table.version}:previous?null:previous);
   }
   useEffect(()=>()=>{if(selectionTimer.current)clearTimeout(selectionTimer.current);},[]);
-  const toolbar=<div className="board-toolbar"><RichNotes api={apiReady} selection={selection} onStatus={status}/><TableTools api={apiReady} selection={tableSelection} onStatus={status}/><AutoAlign api={apiReady} enabled={alignEnabled} onToggle={()=>setAlignEnabled(previous=>{const next=!previous;localStorage.setItem('never-map-auto-align',next?'on':'off');return next;})}/><button onClick={exportDrawing}>导出备份</button><button onClick={exportPNG}>导出 PNG</button>{!androidApp && <span>{name}{loading?' · 正在读取…':''}</span>}</div>;
+  const toolbar=<div className="nm-canvas-tools"><TableTools api={apiReady} selection={tableSelection} onStatus={status}/><LassoTools api={apiReady}/></div>;
   return <>
     <DeviceInput api={apiReady}/>
     <HandwritingEraser api={apiReady}/>
-    {androidApp?(toolbarHost?createPortal(toolbar,toolbarHost):null):toolbar}
-    <section className="canvas" data-loading={loading || locked}>{initial && <Excalidraw initialData={initial} langCode="zh-CN" objectsSnapModeEnabled={alignEnabled} gridModeEnabled={alignEnabled?false:undefined} onPaste={(data,event)=>handleTablePaste(api.current,event,data.text || '',status)} excalidrawAPI={value=>{api.current=value;setApiReady(value);}} onChange={(elements,appState,files)=>{
-      const contentChanged=sceneGate.current.changed(elements,appState.viewBackgroundColor),key=Object.keys(appState.selectedElementIds).join('|')+'|'+(appState.editingTextElement?.id||'');
+    {toolHost&&createPortal(toolbar,toolHost)}
+    <RichNotes api={apiReady} selection={selection} onStatus={status}/>
+    <div className="nm-align-menu"><AutoAlign api={apiReady} enabled={alignEnabled} onToggle={()=>setAlignEnabled(previous=>{const next=!previous;localStorage.setItem('never-map-auto-align',next?'on':'off');return next;})}/></div>
+    <section className="canvas" data-loading={loading || locked}>{initial && <Excalidraw initialData={{...initial,appState:{...initial.appState,objectsSnapModeEnabled:alignEnabled}}} langCode="zh-CN" objectsSnapModeEnabled={alignEnabled} gridModeEnabled={alignEnabled?false:undefined} onPaste={(data,event)=>handleTablePaste(api.current,event,data.text || '',status)} excalidrawAPI={value=>{api.current=value;setApiReady(value);}} onChange={(elements,appState,files)=>{
+      const contentChanged=sceneGate.current.changed(elements,appState.viewBackgroundColor+'|'+appState.theme),key=Object.keys(appState.selectedElementIds).join('|')+'|'+(appState.editingTextElement?.id||'');
       if(contentChanged||key!==selectionKey.current||selectionDirty.current){selectionKey.current=key;
         if(appState.selectedElementsAreBeingDragged||appState.resizingElement){selectionDirty.current=true;if(!selectionTimer.current)selectionTimer.current=setTimeout(()=>{selectionTimer.current=null;if(api.current&&mounted.current)refreshSelection(api.current.getSceneElements(),api.current.getAppState());},120);}
         else{if(selectionTimer.current){clearTimeout(selectionTimer.current);selectionTimer.current=null;}refreshSelection(elements,appState);}
       }
       if(loadingRef.current||!contentChanged)return;
       const drawing={elements:[...elements],appState:{viewBackgroundColor:appState.viewBackgroundColor,theme:appState.theme},files};
-      const sig=signature(drawing);if(sig===savedSignature.current)return;savedSignature.current=sig;latest.current=drawing;pending.current=true;
+      const sig=signature(drawing);if(sig===savedSignature.current)return;savedSignature.current=sig;latest.current=drawing;pending.current=true;if(!navigator.onLine||blocked.current==='network')forceUpload.current=true;
       status(active.current?'有修改 · 约 5 秒后自动上传':'本机内容已修改 · 云端未同步');
       if(localTimer.current)clearTimeout(localTimer.current);localTimer.current=setTimeout(()=>void persist().catch(()=>status('本地保存失败，请立即导出备份')),500);
       if(active.current)queue();
-    }}/>}</section>
+    }}>{menu}</Excalidraw>}</section>
   </>;
 });

@@ -46,7 +46,6 @@ export function SideTextTools({api,selection,onStatus}:{api:ExcalidrawImperative
   },[api,source,session]);
   const dark=api?.getAppState().theme==='dark';
   return <>
-    <button disabled={!api} onClick={()=>start()}>{source?'编辑文字':'新建格式文本'}</button>
     {target && (source || session) && createPortal(<section className={`nm-format ${dark?'dark':''}`} aria-label="文字格式">
       <h3>文字格式</h3><div className="nm-format-buttons">{tools.map(([label,command])=><button key={command} title={label} onPointerDown={e=>e.preventDefault()} onMouseDown={e=>e.preventDefault()} onClick={()=>start(command)}>{label}</button>)}</div>
       <small>选中文字后点击即可开启</small>
@@ -114,7 +113,7 @@ const InlineText=forwardRef<Handle,{api:ExcalidrawImperativeAPI;session:Session;
     return()=>{clearInterval(position);document.removeEventListener('pointerdown',outside,true);window.removeEventListener('beforeunload',warn);if(timer.current)clearTimeout(timer.current);};
   },[]);
   return createPortal(<div ref={element} className="inline-rich-editor" role="textbox" aria-label="画布文字编辑" aria-multiline="true" contentEditable suppressContentEditableWarning
-    style={{left:placement.left,top:placement.top,width,fontSize:size,color,background:api.getAppState().viewBackgroundColor,transform:`scale(${placement.zoom}) rotate(${placement.angle}rad)`}}
+    style={{left:placement.left,top:placement.top,width,fontSize:size,color,background:api.getAppState().viewBackgroundColor,filter:document.querySelector('.excalidraw canvas')?getComputedStyle(document.querySelector('.excalidraw canvas')!).filter:undefined,transform:`scale(${placement.zoom}) rotate(${placement.angle}rad)`}}
     onMouseUp={remember} onKeyUp={remember} onInput={queue} onKeyDown={e=>{e.stopPropagation();if(e.key==='Escape'){e.preventDefault();void finish();}}}
     onPointerDown={e=>e.stopPropagation()} onClick={e=>{const target=e.target as HTMLInputElement;if(target.matches('input[type=checkbox]')){target.toggleAttribute('checked',target.checked);queue();}}}
     onPaste={e=>{e.preventDefault();restore();document.execCommand('insertHTML',false,modelHTML(readHTML(escapeHTML(e.clipboardData.getData('text/plain')).replace(/\n/g,'<br>'))));queue();}}/>,document.body);
