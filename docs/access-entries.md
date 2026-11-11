@@ -1,5 +1,25 @@
 # Access entries
 
+As of 2026-11-11, both the original Workers URL and Pages must serve the same
+full editor on desktop and mobile. `pnpm deploy` builds once and deploys both
+entries with `scripts/deploy-entries.mjs`. Verify both public HTML entry assets,
+offline shell, and a disposable cloud canvas after deployment. A failed second
+deployment is partial success only; rerun with the same build and verify parity.
+Android-only native update controls are the sole platform-specific menu items.
+
+2026-11-11 verification: Worker version
+`4a69ab82-9393-487c-a037-dd3dde8595aa` and Pages deployment `675301c9`
+serve identical entry JS/CSS, offline shell and refresh page. 75 automated tests
+pass. A disposable canvas saved through Workers was read through Pages, then
+its element deletion through Pages was read through Workers. Main scene stayed
+at revision 266 unchanged during this check. Desktop localhost testing (without
+Android mode) confirmed canvas menu, in-place table editing, icon-only lasso
+selection and automatic right sidebar. HTTP asset checks pass through the
+development proxy, but the in-app browser still reports `net::ERR_FAILED` at
+the Workers origin. Frontend parity does not establish resolved connectivity.
+Verification report: `.cache/web-parity-verification.json`; desktop screenshots:
+`.cache/web-parity/`. Never include private canvas recovery exports in releases.
+
 The original workers.dev entry reported `net::ERR_FAILED` on Android and web.
 Rolling back to Worker version 90d43394-bb98-4093-81bd-5bad0c2e30a3 did not
 resolve the user's failure. HTTP requests through the development proxy returned

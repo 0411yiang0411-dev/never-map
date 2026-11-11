@@ -32,8 +32,11 @@ https://never-map-0411yiang0411.pages.dev/ . The user confirmed this entry opens
 the original workers.dev address continued returning ERR_FAILED on their devices
 even after a rollback. Pages forwards /api/* through a service binding to the
 existing never-map Worker, preserving D1/R2/authentication/quota guards. Frontend
-deployment must update Pages (see docs/access-entries.md), not only run the root
-Worker deploy command. Explicit Pages mode is required to avoid Wrangler's
+deployment must update both Workers and Pages from the same dist build (see
+docs/access-entries.md). The user explicitly requires full desktop parity at
+the original workers.dev entry (2026-11-11). `pnpm deploy` updates both entries;
+never leave the original entry on a rollback while updating only Pages.
+Explicit Pages mode is required to avoid Wrangler's
 automatic Pages-to-Workers delegation. No paid plan was enabled.
 
 Android v1.0.8 uses the Pages entry and has an alternate-entry fallback. Local
