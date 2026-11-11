@@ -2,6 +2,9 @@
 const PREFIX='never-map-shell-',CACHE=PREFIX+'__CACHE_VERSION__';
 const CORE=__CORE_ASSETS__;
 const ENTRY=__ENTRY_SCRIPT__;
+// Hosting canonicalizes /index.html to /. Redirected responses fail navigation
+// requests with redirect mode "manual" in Chromium (ERR_FAILED).
+function navigationSafe(response){return response.redirected?new Response(response.body,{status:response.status,statusText:response.statusText,headers:response.headers}):response;}
 function staticURL(url){return url.origin===self.location.origin && /^\/(assets|fonts)\//.test(url.pathname) && !url.search;}
 self.addEventListener('install',event=>event.waitUntil((async()=>{
   const cache=await caches.open(CACHE);
@@ -11,7 +14,7 @@ self.addEventListener('install',event=>event.waitUntil((async()=>{
     if(!response.ok)throw new Error('Core asset unavailable');
     if(url==='/index.html'){if(!(await response.clone().text()).includes(ENTRY))throw new Error('Mixed shell versions');}
     else if((response.headers.get('Content-Type') || '').includes('text/html'))throw new Error('Invalid static asset');
-    return [url,response];
+    return [url,navigationSafe(response)];
   }));
   await Promise.all(resources.map(([url,response])=>cache.put(url,response)));
   await self.skipWaiting();
@@ -26,7 +29,7 @@ self.addEventListener('fetch',event=>{
   const request=event.request,url=new URL(request.url);
   if(request.method!=='GET' || url.origin!==self.location.origin || url.pathname.startsWith('/api/'))return;
   if(request.mode==='navigate' && (url.pathname==='/'||url.pathname==='/index.html')){
-    event.respondWith((async()=>{const cached=await(await caches.open(CACHE)).match('/index.html');return cached || fetch(request);})());return;
+    event.respondWith((async()=>{let cached;try{cached=await(await caches.open(CACHE)).match('/index.html');}catch{}return cached?navigationSafe(cached):fetch(request);})());return;
   }
   if(staticURL(url))event.respondWith((async()=>{
     const cache=await caches.open(CACHE),cached=await cache.match(request) || await caches.match(request);

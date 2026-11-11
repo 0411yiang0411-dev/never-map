@@ -63,3 +63,30 @@ icon-only control inside the central native toolbar.
 
 `/refresh.html` updates the static shell and then opens the editor without
 deleting IndexedDB, credentials, local canvas data or pending uploads.
+
+## Redirected offline-shell recovery (2026-11-11)
+
+Both hosts redirect `/index.html` to `/`. Caching that redirected Response and
+returning it unchanged to a navigation whose redirect mode is manual can cause
+Chromium ERR_FAILED. The shell now reconstructs redirected responses during
+installation and when serving older cached HTML; failed cache access falls
+back to the network. Shell version hashing includes the worker template as well
+as HTML so shell-only fixes receive their own cache. No private data is cleared.
+77 tests pass, including redirected install/legacy cache regressions. A real
+browser fixture with the same index redirect opens on reload and offline, with
+an active service worker and non-redirected cached HTML.
+
+Deployed Worker `ed645b29-ce4f-40e6-af85-cbc73c496cf2`, Pages `b5173482`.
+Both live shells match dist; main revision 266 and scene hashes match across
+entries. Report `.cache/shell-fix/live-verification.json`. Browser navigation via
+Pages refresh reached the editor URL/title after the repair, but the browser
+automation snapshot timed out; do not claim a complete production interaction
+test from that title alone.
+
+A separate transport issue remains for the original Workers hostname on this
+development machine: system DNS returned 159.106.121.75 and TLS timed out;
+Cloudflare DNS-over-HTTPS returned 104.21.12.178 / 172.67.195.43. Pages resolved
+consistently and direct TLS succeeded. This does not establish the user's DNS
+settings, and a shell repair cannot correct external DNS responses. Prefer the
+Pages refresh entry for recovery; do not alter system DNS/hosts or other
+projects' domains as a silent workaround.

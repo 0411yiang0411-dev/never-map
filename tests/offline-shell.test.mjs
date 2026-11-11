@@ -21,3 +21,21 @@ test('cached editor opens immediately while private canvas data remains outside 
   handlers.fetch({request:{method:'GET',url:'https://never-map.test/?app=android',mode:'navigate'},respondWith:value=>response=value});
   assert.equal(await response,cached);assert.equal(writes.length,0);
 });
+test('redirected hosting responses are normalized before caching and on legacy navigation',async()=>{
+  const handlers={},writes=[];
+  const redirected=()=>{const response=new Response('<html>/assets/main.js</html>',{headers:{'Content-Type':'text/html'}});Object.defineProperty(response,'redirected',{value:true});return response;};
+  const cache={match:async()=>redirected(),put:async(key,response)=>writes.push({key,response})};
+  class BrowserRequest extends Request{constructor(url,options){super(new URL(url,'https://never-map.test'),options);}}
+  const context={URL,Request:BrowserRequest,Response,self:{location:{origin:'https://never-map.test'},skipWaiting:async()=>{},addEventListener:(name,fn)=>handlers[name]=fn},caches:{open:async()=>cache},fetch:async()=>redirected()};
+  vm.runInNewContext(template.replace('__CACHE_VERSION__','test').replace('__CORE_ASSETS__','["/index.html"]').replace('__ENTRY_SCRIPT__','"/assets/main.js"'),context);
+  let installed;handlers.install({waitUntil:value=>installed=value});await installed;
+  assert.equal(writes.length,1);assert.equal(writes[0].response.redirected,false);assert.match(await writes[0].response.text(),/main.js/);
+  let navigation;handlers.fetch({request:{method:'GET',url:'https://never-map.test/',mode:'navigate',redirect:'manual'},respondWith:value=>navigation=value});
+  const response=await navigation;assert.equal(response.redirected,false);assert.equal(response.status,200);assert.match(await response.text(),/main.js/);
+});
+test('unavailable cache storage falls back to the network for navigation',async()=>{
+ const handlers={},network=new Response('editor');
+ const context={URL,Request,Response,self:{location:{origin:'https://never-map.test'},addEventListener:(name,fn)=>handlers[name]=fn},caches:{open:async()=>{throw new Error('Storage unavailable');}},fetch:async()=>network};
+ vm.runInNewContext(template.replace('__CACHE_VERSION__','test').replace('__CORE_ASSETS__','[]').replace('__ENTRY_SCRIPT__','"/assets/main.js"'),context);
+ let result;handlers.fetch({request:{method:'GET',url:'https://never-map.test/',mode:'navigate'},respondWith:value=>result=value});assert.equal(await result,network);
+});
